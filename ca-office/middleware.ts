@@ -2,6 +2,8 @@ import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 
 export async function middleware(req: NextRequest) {
+  // API routes do their own authentication (cron secret or session check).
+  if (req.nextUrl.pathname.startsWith('/api/')) return NextResponse.next();
   let res = NextResponse.next({ request: req });
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,

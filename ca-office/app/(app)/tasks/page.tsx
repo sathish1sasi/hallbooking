@@ -1,7 +1,7 @@
 'use client';
 import Link from 'next/link';
 import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Columns3, List, Plus, Search } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { TASK_CATEGORIES } from '@/lib/compliance';
@@ -17,6 +17,7 @@ export default function TasksPage() {
 
 function Tasks() {
   const params = useSearchParams();
+  const router = useRouter();
   const { me, staff, staffName } = useApp();
   const [tasks, setTasks] = useState<Task[] | null>(null);
   const [view, setView] = useState<'list' | 'board'>('list');
@@ -62,6 +63,7 @@ function Tasks() {
             <button className={`px-3 py-2 ${view === 'list' ? 'bg-slate-100' : ''}`} onClick={() => setView('list')} aria-label="List view"><List size={16} /></button>
             <button className={`px-3 py-2 ${view === 'board' ? 'bg-slate-100' : ''}`} onClick={() => setView('board')} aria-label="Board view"><Columns3 size={16} /></button>
           </div>
+          <Link href="/recurring"><Button variant="secondary">Recurring tasks</Button></Link>
           <Button onClick={() => setModal('new')}><Plus size={16} /> New task</Button>
         </>}
       />
@@ -92,7 +94,7 @@ function Tasks() {
                 <tr key={t.id} className="hover:bg-slate-50">
                   <Td><Link href={`/clients/${t.client_id}`} className="font-medium text-slate-900 hover:text-brand-600">{t.clients?.name}</Link></Td>
                   <Td>
-                    <button className="text-left hover:text-brand-600" onClick={() => setModal(t)}>{t.title}</button>
+                    <Link className="text-left hover:text-brand-600" href={`/tasks/${t.id}`}>{t.title}</Link>
                     <div className="flex gap-1">{t.priority === 'high' && <Badge className="bg-red-50 text-red-700">high</Badge>}<span className="text-xs text-slate-500">{t.category}</span></div>
                   </Td>
                   <Td>{t.period}</Td>
@@ -126,7 +128,7 @@ function Tasks() {
                 <div className="mb-2 flex items-center justify-between px-1"><StatusBadge status={col.value} /><span className="text-xs text-slate-500">{items.length}</span></div>
                 <div className="space-y-2">
                   {items.map((t) => (
-                    <div key={t.id} draggable onDragStart={(e) => e.dataTransfer.setData('id', t.id)} onClick={() => setModal(t)}
+                    <div key={t.id} draggable onDragStart={(e) => e.dataTransfer.setData('id', t.id)} onClick={() => router.push(`/tasks/${t.id}`)}
                       className="cursor-pointer rounded-md border border-slate-200 bg-white p-2.5 text-sm shadow-sm hover:border-brand-500">
                       <div className="font-medium">{t.clients?.name}</div>
                       <div className="text-slate-600">{t.title}{t.period ? ` · ${t.period}` : ''}</div>

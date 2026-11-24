@@ -25,6 +25,7 @@ export interface Client {
   assigned_to: string | null;
   status: 'active' | 'inactive';
   notes: string | null;
+  reminders_opt_out: boolean;
   created_at: string;
 }
 
@@ -60,6 +61,9 @@ export interface DocumentRow {
   received_on: string | null;
   returned_on: string | null;
   notes: string | null;
+  file_path: string | null;
+  file_name: string | null;
+  file_size: number | null;
   clients?: { name: string } | null;
 }
 
@@ -124,6 +128,13 @@ export interface FirmSettings {
   bank_details: string | null;
   invoice_prefix: string;
   next_invoice_no: number;
+  reminders_enabled: boolean;
+  reminder_deadline_days: number;
+  reminder_doc_after_days: number;
+  reminder_repeat_days: number;
+  reminder_payment_grace_days: number;
+  reminder_kinds: string[];
+  reminder_channels: string[];
 }
 
 export const TASK_STATUSES: { value: TaskStatus; label: string; color: string }[] = [
@@ -162,4 +173,13 @@ export interface Dsc {
 export interface Attendance {
   id: string; user_id: string; work_date: string; check_in: string | null; check_out: string | null;
   status: 'present' | 'half_day' | 'leave' | 'wfh'; note: string | null;
+}
+
+export interface ChecklistItem { id: string; task_id: string; label: string; done: boolean; position: number; done_by: string | null; done_at: string | null }
+export interface TaskComment { id: string; task_id: string; user_id: string; body: string; created_at: string }
+export interface RecurringTask {
+  id: string; client_id: string; title: string; category: string;
+  frequency: 'weekly' | 'monthly' | 'quarterly' | 'half_yearly' | 'yearly';
+  anchor_day: number; next_due: string; period_mode: 'previous' | 'current' | 'none';
+  assigned_to: string | null; fee: number; checklist: string[]; active: boolean; clients?: { name: string } | null;
 }

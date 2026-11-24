@@ -4,15 +4,16 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   LayoutDashboard, ListChecks, CheckSquare, Users, Package, CalendarClock, IndianRupee, Clock, CalendarCheck,
-  FileKey2, BarChart3, BellRing, UserCog, Settings, LogOut, Menu, Bell, Search, Calculator,
+  FileKey2, BarChart3, BellRing, UserCog, Settings, LogOut, Menu, Bell, Search, Calculator, MailCheck,
 } from 'lucide-react';
+import { QuickAdd } from './QuickAdd';
 import { supabase } from '@/lib/supabase';
 import { addDays, todayISO } from '@/lib/format';
 import { useApp } from './AppContext';
 
 const NAV = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/tasks', label: 'Tasks', icon: ListChecks },
+  { href: '/tasks', label: 'Tasks', icon: ListChecks, also: ['/recurring'] },
   { href: '/todos', label: 'To-Do', icon: CheckSquare },
   { href: '/clients', label: 'Clients', icon: Users },
   { href: '/packages', label: 'Packages', icon: Package },
@@ -25,6 +26,7 @@ const NAV = [
   { href: '/notify', label: 'Send notifications', icon: BellRing },
 ];
 const ADMIN_NAV = [
+  { href: '/reminders', label: 'Auto reminders', icon: MailCheck },
   { href: '/staff', label: 'Users', icon: UserCog },
   { href: '/settings', label: 'Settings', icon: Settings },
 ];
@@ -40,6 +42,7 @@ export function Shell({ children }: { children: ReactNode }) {
   const [showSearch, setShowSearch] = useState(false);
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [showAlerts, setShowAlerts] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
   const bellRef = useRef<HTMLDivElement>(null);
   const items = me?.role === 'admin' ? [...NAV, ...ADMIN_NAV] : NAV;
 
@@ -132,6 +135,7 @@ export function Shell({ children }: { children: ReactNode }) {
             )}
           </div>
           <div className="ml-auto flex items-center gap-3">
+            <QuickAdd onCreated={() => setRefreshKey((k) => k + 1)} />
             <div ref={bellRef} className="relative">
               <button onClick={() => setShowAlerts(!showAlerts)} className="relative rounded-full p-2 text-slate-500 hover:bg-slate-100" aria-label="Notifications">
                 <Bell size={19} />
@@ -157,7 +161,7 @@ export function Shell({ children }: { children: ReactNode }) {
             </div>
           </div>
         </header>
-        <main className="mx-auto max-w-[1400px] p-4 sm:p-6 print:p-0">{children}</main>
+        <main key={refreshKey} className="mx-auto max-w-[1400px] p-4 sm:p-6 print:p-0">{children}</main>
       </div>
     </div>
   );

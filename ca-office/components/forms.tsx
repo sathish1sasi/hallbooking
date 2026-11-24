@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { SERVICES, TASK_CATEGORIES } from '@/lib/compliance';
+import { stepsFor } from '@/lib/checklists';
 import { todayISO, validGSTIN, validPAN } from '@/lib/format';
 import { CLIENT_TYPES, INDIAN_STATES, TASK_STATUSES, type Client, type DocumentRow, type Task } from '@/lib/types';
 import { useApp } from './AppContext';
@@ -29,6 +30,7 @@ export function ClientForm({ client, onSaved }: { client?: Client; onSaved: (c: 
     assigned_to: client?.assigned_to ?? '',
     status: client?.status ?? 'active',
     notes: client?.notes ?? '',
+    reminders_opt_out: client?.reminders_opt_out ?? false,
   });
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -106,6 +108,9 @@ export function ClientForm({ client, onSaved }: { client?: Client; onSaved: (c: 
         </div>
       </div>
       <Field label="Notes"><Textarea value={f.notes} onChange={set('notes')} /></Field>
+      <label className="flex items-center gap-2 text-sm text-slate-600">
+        <input type="checkbox" checked={f.reminders_opt_out} onChange={(e) => setF({ ...f, reminders_opt_out: e.target.checked })} /> Don’t send automatic reminders to this client
+      </label>
       <ErrorNote error={error} />
       <div className="flex justify-end"><Button disabled={busy}>{busy ? 'Saving…' : 'Save client'}</Button></div>
     </form>
@@ -132,6 +137,7 @@ export function TaskForm({ task, clientId, onSaved, onDeleted }: {
   });
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [withSteps, setWithSteps] = useState(true);
   const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
     setF({ ...f, [k]: e.target.value });
 
@@ -139,9 +145,16 @@ export function TaskForm({ task, clientId, onSaved, onDeleted }: {
     e.preventDefault();
     setBusy(true); setError(null);
     const payload = blankToNull({ ...f, fee: Number(f.fee) || 0 });
-    const { error } = task
-      ? await supabase().from('tasks').update(payload).eq('id', task.id)
-      : await supabase().from('tasks').insert(payload);
+    let error;
+    if (task) {
+      ({ error } = await supabase().from('tasks').update(payload).eq('id', task.id));
+    } else {
+      const res = await supabase().from('tasks').insert(payload).select('id').single();
+      error = res.error;
+      if (!error && withSteps) {
+        await supabase().from('task_checklist').insert(stepsFor(f.category).map((label, i) => ({ task_id: res.data.id, label, position: i + 1 })));
+      }
+    }
     setBusy(false);
     if (error) return setError(error.message);
     onSaved();
@@ -189,6 +202,11 @@ export function TaskForm({ task, clientId, onSaved, onDeleted }: {
         <Field label="ARN / Ack. no."><Input value={f.acknowledgement_no} onChange={set('acknowledgement_no')} /></Field>
       </div>
       <Field label="Notes"><Textarea value={f.notes} onChange={set('notes')} /></Field>
+      {!task && (
+        <label className="flex items-center gap-2 text-sm text-slate-600">
+          <input type="checkbox" checked={withSteps} onChange={(e) => setWithSteps(e.target.checked)} /> Add the standard {f.category} checklist ({stepsFor(f.category).length} steps)
+        </label>
+      )}
       <ErrorNote error={error} />
       <div className="flex justify-between">
         {task ? <Button type="button" variant="ghost" className="text-red-600" onClick={remove}>Delete</Button> : <span />}

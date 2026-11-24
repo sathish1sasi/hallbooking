@@ -478,3 +478,177 @@ begin
   where id = p_id;
 end;
 $$;
+
+-- ===========================================================================
+-- v3 additions: file uploads, task checklists & comments, recurring tasks,
+-- automatic reminders
+-- ===========================================================================
+
+-- ---- File uploads (Supabase Storage, private bucket) ----
+alter table public.documents add column if not exists file_path text;
+alter table public.documents add column if not exists file_name text;
+alter table public.documents add column if not exists file_size bigint;
+alter table public.documents add column if not exists uploaded_by uuid references public.profiles(id) on delete set null;
+
+insert into storage.buckets (id, name, public)
+values ('client-files', 'client-files', false)
+on conflict (id) do nothing;
+
+drop policy if exists "client files read" on storage.objects;
+create policy "client files read" on storage.objects for select to authenticated
+  using (bucket_id = 'client-files');
+drop policy if exists "client files upload" on storage.objects;
+create policy "client files upload" on storage.objects for insert to authenticated
+  with check (bucket_id = 'client-files');
+drop policy if exists "client files delete" on storage.objects;
+create policy "client files delete" on storage.objects for delete to authenticated
+  using (bucket_id = 'client-files' and (owner = auth.uid() or public.is_admin()));
+
+-- ---- Task checklist & comments ----
+create table if not exists public.task_checklist (
+  id uuid primary key default gen_random_uuid(),
+  task_id uuid not null references public.tasks(id) on delete cascade,
+  label text not null,
+  done boolean not null default false,
+  position int not null default 0,
+  done_by uuid references public.profiles(id) on delete set null,
+  done_at timestamptz
+);
+create index if not exists task_checklist_task_idx on public.task_checklist (task_id, position);
+
+create table if not exists public.task_comments (
+  id uuid primary key default gen_random_uuid(),
+  task_id uuid not null references public.tasks(id) on delete cascade,
+  user_id uuid not null references public.profiles(id) on delete cascade default auth.uid(),
+  body text not null check (length(trim(body)) > 0),
+  created_at timestamptz not null default now()
+);
+create index if not exists task_comments_task_idx on public.task_comments (task_id, created_at);
+
+-- ---- Recurring task templates ----
+create table if not exists public.recurring_tasks (
+  id uuid primary key default gen_random_uuid(),
+  client_id uuid not null references public.clients(id) on delete cascade,
+  title text not null,
+  category text not null default 'other',
+  frequency text not null default 'monthly' check (frequency in ('weekly', 'monthly', 'quarterly', 'half_yearly', 'yearly')),
+  anchor_day int not null default 10 check (anchor_day between 1 and 31),
+  next_due date not null,
+  period_mode text not null default 'previous' check (period_mode in ('previous', 'current', 'none')),
+  assigned_to uuid references public.profiles(id) on delete set null,
+  fee numeric(12,2) not null default 0,
+  checklist text[] not null default '{}',
+  active boolean not null default true,
+  created_at timestamptz not null default now()
+);
+
+-- Next occurrence after `d`, keeping the anchor day (31st -> 30th/28th in short months).
+create or replace function public.recurring_next(d date, freq text, anchor int)
+returns date language plpgsql immutable as $$
+declare base date; last_day int;
+begin
+  if freq = 'weekly' then return d + 7; end if;
+  base := (date_trunc('month', d) + case freq
+      when 'monthly' then interval '1 month'
+      when 'quarterly' then interval '3 months'
+      when 'half_yearly' then interval '6 months'
+      else interval '1 year' end)::date;
+  last_day := extract(day from (base + interval '1 month - 1 day'))::int;
+  return base + (least(anchor, last_day) - 1);
+end;
+$$;
+
+-- Period label for a recurring task due on `d`.
+create or replace function public.recurring_period(d date, freq text, mode text)
+returns text language sql immutable as $$
+  select case
+    when mode = 'none' then null
+    when freq = 'weekly' then 'Week of ' || to_char(d, 'DD Mon YYYY')
+    when mode = 'current' then to_char(d, 'Mon-YYYY')
+    when freq = 'monthly' then to_char(d - interval '1 month', 'Mon-YYYY')
+    when freq = 'quarterly' then to_char(d - interval '3 months', 'Mon') || '–' || to_char(d - interval '1 month', 'Mon YYYY')
+    when freq = 'half_yearly' then to_char(d - interval '6 months', 'Mon') || '–' || to_char(d - interval '1 month', 'Mon YYYY')
+    else 'Year to ' || to_char(d - interval '1 month', 'Mon YYYY')
+  end;
+$$;
+
+-- Create tasks for every active template due within `p_lead_days`, then roll
+-- the template forward. Safe to call repeatedly: duplicates are skipped.
+create or replace function public.generate_recurring_tasks(p_lead_days int default 7)
+returns int language plpgsql security definer set search_path = public as $$
+declare r record; v_task uuid; v_count int := 0; v_due date; i int;
+begin
+  for r in select * from recurring_tasks where active and next_due <= current_date + p_lead_days for update loop
+    v_due := r.next_due;
+    while v_due <= current_date + p_lead_days loop
+      insert into tasks (client_id, title, category, period, due_date, assigned_to, fee, compliance_key, created_by)
+      values (r.client_id, r.title, r.category, recurring_period(v_due, r.frequency, r.period_mode), v_due,
+              coalesce(r.assigned_to, (select c.assigned_to from clients c where c.id = r.client_id)),
+              r.fee, 'REC:' || r.id || ':' || v_due, null)
+      on conflict (client_id, compliance_key) do nothing
+      returning id into v_task;
+      if v_task is not null then
+        v_count := v_count + 1;
+        for i in 1 .. coalesce(array_length(r.checklist, 1), 0) loop
+          insert into task_checklist (task_id, label, position) values (v_task, r.checklist[i], i);
+        end loop;
+      end if;
+      v_task := null;
+      v_due := recurring_next(v_due, r.frequency, r.anchor_day);
+    end loop;
+    update recurring_tasks set next_due = v_due where id = r.id;
+  end loop;
+  return v_count;
+end;
+$$;
+
+-- ---- Automatic reminders ----
+alter table public.firm_settings add column if not exists reminders_enabled boolean not null default false;
+alter table public.firm_settings add column if not exists reminder_deadline_days int not null default 3;
+alter table public.firm_settings add column if not exists reminder_doc_after_days int not null default 7;
+alter table public.firm_settings add column if not exists reminder_repeat_days int not null default 7;
+alter table public.firm_settings add column if not exists reminder_payment_grace_days int not null default 3;
+alter table public.firm_settings add column if not exists reminder_kinds text[] not null default '{deadline,documents,payment}';
+alter table public.firm_settings add column if not exists reminder_channels text[] not null default '{email}';
+alter table public.clients add column if not exists reminders_opt_out boolean not null default false;
+
+create table if not exists public.reminder_log (
+  id uuid primary key default gen_random_uuid(),
+  client_id uuid not null references public.clients(id) on delete cascade,
+  kind text not null check (kind in ('deadline', 'documents', 'payment')),
+  channel text not null check (channel in ('email', 'whatsapp')),
+  sent_on date not null default current_date,
+  status text not null check (status in ('sent', 'failed', 'skipped')),
+  detail text,
+  created_at timestamptz not null default now()
+);
+create index if not exists reminder_log_lookup on public.reminder_log (client_id, kind, sent_on desc);
+
+-- ---- RLS for v3 tables ----
+alter table public.task_checklist enable row level security;
+alter table public.task_comments enable row level security;
+alter table public.recurring_tasks enable row level security;
+alter table public.reminder_log enable row level security;
+
+drop policy if exists "checklist all" on public.task_checklist;
+create policy "checklist all" on public.task_checklist for all to authenticated using (true) with check (true);
+
+drop policy if exists "comments read" on public.task_comments;
+create policy "comments read" on public.task_comments for select to authenticated using (true);
+drop policy if exists "comments insert" on public.task_comments;
+create policy "comments insert" on public.task_comments for insert to authenticated with check (user_id = auth.uid());
+drop policy if exists "comments delete" on public.task_comments;
+create policy "comments delete" on public.task_comments for delete to authenticated using (user_id = auth.uid() or public.is_admin());
+
+drop policy if exists "recurring read" on public.recurring_tasks;
+create policy "recurring read" on public.recurring_tasks for select to authenticated using (true);
+drop policy if exists "recurring write" on public.recurring_tasks;
+create policy "recurring write" on public.recurring_tasks for insert to authenticated with check (true);
+drop policy if exists "recurring update" on public.recurring_tasks;
+create policy "recurring update" on public.recurring_tasks for update to authenticated using (true) with check (true);
+drop policy if exists "recurring delete" on public.recurring_tasks;
+create policy "recurring delete" on public.recurring_tasks for delete to authenticated using (public.is_admin());
+
+-- Reminder log: readable by staff; written only by the server job (service role bypasses RLS).
+drop policy if exists "reminder log read" on public.reminder_log;
+create policy "reminder log read" on public.reminder_log for select to authenticated using (true);

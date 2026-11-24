@@ -10,6 +10,8 @@ import type { Client, DocumentRow, Task, TimeEntry } from '@/lib/types';
 import { useApp } from '@/components/AppContext';
 import { ClientForm, DocumentForm, TaskForm } from '@/components/forms';
 import { DocStatusSelect } from '@/components/DocStatusSelect';
+import { FileLink } from '@/components/FileLink';
+import { UploadButton } from '@/components/FileButton';
 import {
   Badge, Button, Card, DueBadge, Empty, InvoiceStatusBadge, Modal, PageHeader, StatusBadge, Table, Td,
 } from '@/components/ui';
@@ -122,7 +124,7 @@ export default function ClientDetail() {
               {!visibleTasks.length ? <Empty>No tasks.</Empty> : (
                 <Table head={['Task', 'Period', 'Due', 'Assignee', 'Status', 'Fee']}>
                   {visibleTasks.map((t) => (
-                    <tr key={t.id} className="cursor-pointer hover:bg-slate-50" onClick={() => setModal({ task: t })}>
+                    <tr key={t.id} className="cursor-pointer hover:bg-slate-50" onClick={() => router.push(`/tasks/${t.id}`)}>
                       <Td><span className="font-medium">{t.title}</span><div className="text-xs text-slate-500">{t.category}{t.acknowledgement_no ? ` · ARN ${t.acknowledgement_no}` : ''}</div></Td>
                       <Td>{t.period}</Td>
                       <Td><div className="whitespace-nowrap">{fmtDate(t.due_date)}</div><DueBadge days={daysUntil(t.due_date)} done={t.status === 'done'} /></Td>
@@ -137,12 +139,15 @@ export default function ClientDetail() {
           )}
 
           {tab === 'documents' && (
-            <Card title="Documents" action={<Button variant="secondary" onClick={() => setModal('doc')}><Plus size={14} /> Request</Button>}>
+            <Card title="Documents & files" action={<div className="flex gap-2"><UploadButton clientId={client.id} onDone={load} /><Button variant="secondary" onClick={() => setModal('doc')}><Plus size={14} /> Request</Button></div>}>
               {!docs.length ? <Empty>No documents tracked.</Empty> : (
                 <Table head={['Document', 'Requested', 'Received', 'Status']}>
                   {docs.map((d) => (
                     <tr key={d.id}>
-                      <Td><span className="font-medium">{d.name}</span>{d.notes && <div className="text-xs text-slate-500">{d.notes}</div>}</Td>
+                      <Td>
+                        <span className="font-medium">{d.name}</span>{d.notes && <div className="text-xs text-slate-500">{d.notes}</div>}
+                        <div className="mt-1">{d.file_path ? <FileLink doc={d} onRemoved={load} /> : d.status === 'pending' ? <UploadButton compact clientId={client.id} documentId={d.id} label="Attach file" onDone={load} /> : null}</div>
+                      </Td>
                       <Td>{fmtDate(d.requested_on)}</Td>
                       <Td>{fmtDate(d.received_on)}</Td>
                       <Td><DocStatusSelect doc={d} onChanged={load} /></Td>

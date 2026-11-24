@@ -8,6 +8,8 @@ import type { DocumentRow } from '@/lib/types';
 import { DocumentForm } from '@/components/forms';
 import { DocStatusSelect } from '@/components/DocStatusSelect';
 import { DocTabs } from '@/components/DocTabs';
+import { FileLink } from '@/components/FileLink';
+import { UploadButton } from '@/components/FileButton';
 import { Button, Card, Empty, Input, Modal, PageHeader, Select, Table, Td } from '@/components/ui';
 
 export default function DocumentsPage() {
@@ -61,7 +63,11 @@ export default function DocumentsPage() {
               return (
                 <tr key={d.id} className="hover:bg-slate-50">
                   <Td><Link href={`/clients/${d.client_id}`} className="font-medium hover:text-brand-600">{d.clients?.name}</Link></Td>
-                  <Td><button className="text-left hover:text-brand-600" onClick={() => setModal(d)}>{d.name}</button>{d.notes && <div className="text-xs text-slate-500">{d.notes}</div>}</Td>
+                  <Td>
+                    <button className="text-left hover:text-brand-600" onClick={() => setModal(d)}>{d.name}</button>
+                    {d.notes && <div className="text-xs text-slate-500">{d.notes}</div>}
+                    <div className="mt-1">{d.file_path ? <FileLink doc={d} onRemoved={load} /> : <UploadButton compact clientId={d.client_id} documentId={d.id} label="Attach file" onDone={load} />}</div>
+                  </Td>
                   <Td className="whitespace-nowrap">{fmtDate(d.requested_on)}{d.status === 'pending' && age > 7 && <div className="text-xs text-red-600">{age} days waiting</div>}</Td>
                   <Td className="whitespace-nowrap">{fmtDate(d.received_on)}</Td>
                   <Td><DocStatusSelect doc={d} onChanged={load} /></Td>
