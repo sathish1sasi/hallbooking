@@ -5,7 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import { Columns3, List, Plus, Search } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { TASK_CATEGORIES } from '@/lib/compliance';
-import { daysUntil, fmtDate, inr, todayISO } from '@/lib/format';
+import { addDays, daysUntil, fmtDate, inr, todayISO } from '@/lib/format';
 import { TASK_STATUSES, type Task, type TaskStatus } from '@/lib/types';
 import { useApp } from '@/components/AppContext';
 import { TaskForm } from '@/components/forms';
@@ -22,8 +22,8 @@ function Tasks() {
   const [view, setView] = useState<'list' | 'board'>('list');
   const [q, setQ] = useState('');
   const [assignee, setAssignee] = useState('');
-  const [category, setCategory] = useState('');
-  const [when, setWhen] = useState(params.get('view') === 'overdue' ? 'overdue' : 'open');
+  const [category, setCategory] = useState(params.get('category') ?? '');
+  const [when, setWhen] = useState(params.get('view') ?? 'open');
   const [modal, setModal] = useState<null | 'new' | Task>(null);
 
   const load = useCallback(async () => {
@@ -41,7 +41,7 @@ function Tasks() {
     return (tasks ?? []).filter((t) =>
       (!assignee || (assignee === 'me' ? t.assigned_to === me?.id : assignee === 'none' ? !t.assigned_to : t.assigned_to === assignee)) &&
       (!category || t.category === category) &&
-      (when !== 'overdue' || (t.due_date && t.due_date < today)) &&
+      inWindow(when, t.due_date, today) &&
       (!needle || [t.title, t.period, t.clients?.name].some((v) => v?.toLowerCase().includes(needle))),
     );
   }, [tasks, q, assignee, category, when, me]);
@@ -71,7 +71,9 @@ function Tasks() {
           <Input className="pl-9" placeholder="Search task, period or client…" value={q} onChange={(e) => setQ(e.target.value)} />
         </div>
         <Select className="w-auto" value={when} onChange={(e) => setWhen(e.target.value)}>
-          <option value="open">Open</option><option value="overdue">Overdue</option><option value="done">Completed</option><option value="all">All</option>
+          <option value="open">Open</option><option value="today">Due today</option><option value="tomorrow">Due tomorrow</option>
+          <option value="week">Due in 7 days</option><option value="overdue">Overdue</option><option value="overdue7">Overdue up to 7 days</option>
+          <option value="overdue_old">Overdue more than 7 days</option><option value="done">Completed</option><option value="all">All</option>
         </Select>
         <Select className="w-auto" value={assignee} onChange={(e) => setAssignee(e.target.value)}>
           <option value="">Everyone</option><option value="me">Assigned to me</option><option value="none">Unassigned</option>
@@ -108,7 +110,7 @@ function Tasks() {
           )}
         </Card>
       ) : (
-        <div className="grid gap-4 overflow-x-auto md:grid-cols-5">
+        <div className="grid grid-flow-col auto-cols-[minmax(14rem,1fr)] gap-4 overflow-x-auto pb-2">
           {TASK_STATUSES.map((col) => {
             const items = filtered.filter((t) => t.status === col.value);
             return (
@@ -152,4 +154,17 @@ function Tasks() {
       )}
     </>
   );
+}
+
+function inWindow(when: string, due: string | null, today: string) {
+  const ranges: Record<string, [string, string]> = {
+    today: [today, today],
+    tomorrow: [addDays(today, 1), addDays(today, 1)],
+    week: [addDays(today, 2), addDays(today, 7)],
+    overdue: ['0000-01-01', addDays(today, -1)],
+    overdue7: [addDays(today, -7), addDays(today, -1)],
+    overdue_old: ['0000-01-01', addDays(today, -8)],
+  };
+  const r = ranges[when];
+  return !r || (!!due && due >= r[0] && due <= r[1]);
 }

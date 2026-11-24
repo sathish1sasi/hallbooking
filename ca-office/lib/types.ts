@@ -28,7 +28,7 @@ export interface Client {
   created_at: string;
 }
 
-export type TaskStatus = 'todo' | 'in_progress' | 'waiting_client' | 'review' | 'done';
+export type TaskStatus = 'todo' | 'in_progress' | 'hold' | 'waiting_client' | 'review' | 'done';
 
 export interface Task {
   id: string;
@@ -129,6 +129,7 @@ export interface FirmSettings {
 export const TASK_STATUSES: { value: TaskStatus; label: string; color: string }[] = [
   { value: 'todo', label: 'To do', color: 'bg-slate-100 text-slate-700' },
   { value: 'in_progress', label: 'In progress', color: 'bg-blue-100 text-blue-700' },
+  { value: 'hold', label: 'On hold', color: 'bg-rose-100 text-rose-700' },
   { value: 'waiting_client', label: 'Waiting on client', color: 'bg-amber-100 text-amber-800' },
   { value: 'review', label: 'Review', color: 'bg-violet-100 text-violet-700' },
   { value: 'done', label: 'Done', color: 'bg-emerald-100 text-emerald-700' },
@@ -143,3 +144,22 @@ export const INDIAN_STATES = [
   'Tripura', 'Uttar Pradesh', 'Uttarakhand', 'West Bengal', 'Andaman and Nicobar Islands', 'Chandigarh',
   'Dadra and Nagar Haveli and Daman and Diu', 'Delhi', 'Jammu and Kashmir', 'Ladakh', 'Lakshadweep', 'Puducherry',
 ];
+
+export interface Todo { id: string; user_id: string; title: string; due_date: string; done: boolean; client_id: string | null; }
+
+export interface Package {
+  id: string; client_id: string; name: string; fee: number;
+  frequency: 'monthly' | 'quarterly' | 'half_yearly' | 'yearly' | 'one_time';
+  next_bill_date: string; active: boolean; clients?: { name: string } | null;
+}
+
+export interface Dsc {
+  id: string; client_id: string; holder_name: string; dsc_class: string; issued_by: string | null;
+  valid_from: string | null; valid_to: string; location: 'office' | 'client';
+  token_password_hint: string | null; notes: string | null; clients?: { name: string; phone: string | null } | null;
+}
+
+export interface Attendance {
+  id: string; user_id: string; work_date: string; check_in: string | null; check_out: string | null;
+  status: 'present' | 'half_day' | 'leave' | 'wfh'; note: string | null;
+}

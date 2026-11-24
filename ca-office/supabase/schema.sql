@@ -367,3 +367,114 @@ create policy "time update" on public.time_entries for update to authenticated
 drop policy if exists "time delete" on public.time_entries;
 create policy "time delete" on public.time_entries for delete to authenticated
   using (user_id = auth.uid() or public.is_admin());
+
+-- ===========================================================================
+-- v2 additions: Hold status, To-Do, Packages, DSC register, Attendance
+-- ===========================================================================
+alter table public.tasks drop constraint if exists tasks_status_check;
+alter table public.tasks add constraint tasks_status_check
+  check (status in ('todo', 'in_progress', 'hold', 'waiting_client', 'review', 'done'));
+
+-- Personal to-do list (calls, visits, errands) — separate from client tasks.
+create table if not exists public.todos (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.profiles(id) on delete cascade default auth.uid(),
+  title text not null,
+  due_date date not null default current_date,
+  done boolean not null default false,
+  client_id uuid references public.clients(id) on delete set null,
+  created_at timestamptz not null default now()
+);
+
+-- Recurring fee packages (e.g. "GST monthly — ₹2,500 / month").
+create table if not exists public.packages (
+  id uuid primary key default gen_random_uuid(),
+  client_id uuid not null references public.clients(id) on delete cascade,
+  name text not null,
+  fee numeric(12,2) not null check (fee >= 0),
+  frequency text not null default 'monthly' check (frequency in ('monthly', 'quarterly', 'half_yearly', 'yearly', 'one_time')),
+  next_bill_date date not null default current_date,
+  active boolean not null default true,
+  created_at timestamptz not null default now()
+);
+
+-- Digital signature certificate register.
+create table if not exists public.dsc (
+  id uuid primary key default gen_random_uuid(),
+  client_id uuid not null references public.clients(id) on delete cascade,
+  holder_name text not null,
+  dsc_class text not null default 'Class 3',
+  issued_by text,
+  valid_from date,
+  valid_to date not null,
+  location text not null default 'office' check (location in ('office', 'client')),
+  token_password_hint text,
+  notes text,
+  created_at timestamptz not null default now()
+);
+
+-- Staff attendance (one row per person per day).
+create table if not exists public.attendance (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.profiles(id) on delete cascade default auth.uid(),
+  work_date date not null default current_date,
+  check_in timestamptz,
+  check_out timestamptz,
+  status text not null default 'present' check (status in ('present', 'half_day', 'leave', 'wfh')),
+  note text,
+  unique (user_id, work_date)
+);
+
+alter table public.todos enable row level security;
+alter table public.packages enable row level security;
+alter table public.dsc enable row level security;
+alter table public.attendance enable row level security;
+
+-- To-dos are private to their owner.
+drop policy if exists "todos own" on public.todos;
+create policy "todos own" on public.todos for all to authenticated
+  using (user_id = auth.uid()) with check (user_id = auth.uid());
+
+-- Packages & DSC: office-wide; deletes by admins only.
+do $$
+declare t text;
+begin
+  foreach t in array array['packages', 'dsc'] loop
+    execute format('drop policy if exists "%1$s read" on public.%1$s', t);
+    execute format('create policy "%1$s read" on public.%1$s for select to authenticated using (true)', t);
+    execute format('drop policy if exists "%1$s insert" on public.%1$s', t);
+    execute format('create policy "%1$s insert" on public.%1$s for insert to authenticated with check (true)', t);
+    execute format('drop policy if exists "%1$s update" on public.%1$s', t);
+    execute format('create policy "%1$s update" on public.%1$s for update to authenticated using (true) with check (true)', t);
+    execute format('drop policy if exists "%1$s delete" on public.%1$s', t);
+    execute format('create policy "%1$s delete" on public.%1$s for delete to authenticated using (public.is_admin())', t);
+  end loop;
+end $$;
+
+-- Attendance: everyone sees the register; you mark your own, admins can fix anyone's.
+drop policy if exists "attendance read" on public.attendance;
+create policy "attendance read" on public.attendance for select to authenticated using (true);
+drop policy if exists "attendance write" on public.attendance;
+create policy "attendance write" on public.attendance for insert to authenticated
+  with check (user_id = auth.uid() or public.is_admin());
+drop policy if exists "attendance update" on public.attendance;
+create policy "attendance update" on public.attendance for update to authenticated
+  using (user_id = auth.uid() or public.is_admin()) with check (user_id = auth.uid() or public.is_admin());
+drop policy if exists "attendance delete" on public.attendance;
+create policy "attendance delete" on public.attendance for delete to authenticated using (public.is_admin());
+
+-- Advance a package's next billing date after it has been invoiced.
+create or replace function public.advance_package(p_id uuid)
+returns void language plpgsql security definer set search_path = public as $$
+begin
+  update packages set
+    next_bill_date = case frequency
+      when 'monthly' then next_bill_date + interval '1 month'
+      when 'quarterly' then next_bill_date + interval '3 months'
+      when 'half_yearly' then next_bill_date + interval '6 months'
+      when 'yearly' then next_bill_date + interval '1 year'
+      else next_bill_date end,
+    active = (frequency <> 'one_time')
+  where id = p_id;
+end;
+$$;

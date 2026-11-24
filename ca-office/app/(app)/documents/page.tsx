@@ -7,6 +7,7 @@ import { daysUntil, fmtDate } from '@/lib/format';
 import type { DocumentRow } from '@/lib/types';
 import { DocumentForm } from '@/components/forms';
 import { DocStatusSelect } from '@/components/DocStatusSelect';
+import { DocTabs } from '@/components/DocTabs';
 import { Button, Card, Empty, Input, Modal, PageHeader, Select, Table, Td } from '@/components/ui';
 
 export default function DocumentsPage() {
@@ -37,6 +38,7 @@ export default function DocumentsPage() {
 
   return (
     <>
+      <DocTabs />
       <PageHeader
         title="Document tracker"
         subtitle="Track what you've asked clients for and what has come in."
