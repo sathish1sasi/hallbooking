@@ -2,7 +2,7 @@
 import { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Plus, Trash2 } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
+import { api } from '@/lib/api';
 import { addDays, inr, todayISO } from '@/lib/format';
 import type { FirmSettings } from '@/lib/types';
 import { useApp } from '@/components/AppContext';
@@ -35,14 +35,14 @@ function NewInvoice() {
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    supabase().from('firm_settings').select('*').single().then(({ data }: { data: FirmSettings | null }) => setFirm(data));
+    api().from('firm_settings').select('*').single().then(({ data }: { data: FirmSettings | null }) => setFirm(data));
   }, []);
 
   useEffect(() => {
     if (!clientId) { setUnbilled([]); return; }
     const c = clients.find((x) => x.id === clientId);
     setIgst(!!(firm?.state && c?.state && firm.state !== c.state));
-    supabase().from('tasks').select('id, title, period, fee, status').eq('client_id', clientId).eq('billed', false).gt('fee', 0).order('due_date')
+    api().from('tasks').select('id, title, period, fee, status').eq('client_id', clientId).eq('billed', false).gt('fee', 0).order('due_date')
       .then(({ data }: { data: UnbilledTask[] | null }) => setUnbilled(data ?? []));
     setLines([blank()]);
   }, [clientId, clients, firm]);
@@ -61,7 +61,7 @@ function NewInvoice() {
     if (!clientId) return setError('Pick a client.');
     if (!valid.length) return setError('Add at least one line with a description and amount.');
     setBusy(true); setError(null);
-    const sb = supabase();
+    const sb = api();
     const { data: no, error: e1 } = await sb.rpc('next_invoice_number', { p_date: issue });
     if (e1) { setBusy(false); return setError(e1.message); }
     const { data: inv, error: e2 } = await sb.from('invoices').insert({
@@ -75,7 +75,7 @@ function NewInvoice() {
     if (e3) { setBusy(false); return setError(e3.message); }
     const taskIds = valid.map((l) => l.task_id).filter(Boolean) as string[];
     if (taskIds.length) await sb.from('tasks').update({ billed: true }).in('id', taskIds);
-    router.replace(`/invoices/${inv.id}`);
+    router.replace(`/invoices/view/?id=${inv.id}`);
   };
 
   return (

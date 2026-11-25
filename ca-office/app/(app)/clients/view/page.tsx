@@ -1,9 +1,10 @@
 'use client';
 import Link from 'next/link';
-import { useParams, useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { Suspense } from 'react';
 import { useCallback, useEffect, useState } from 'react';
 import { ArrowLeft, Pencil, Plus } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
+import { api } from '@/lib/api';
 import { SERVICES } from '@/lib/compliance';
 import { daysUntil, fmtDate, inr } from '@/lib/format';
 import type { Client, DocumentRow, Task, TimeEntry } from '@/lib/types';
@@ -19,8 +20,12 @@ import {
 type Bal = { id: string; invoice_no: string; issue_date: string; total: number; paid: number; balance: number; status: string };
 type Tab = 'tasks' | 'documents' | 'billing' | 'time';
 
-export default function ClientDetail() {
-  const { id } = useParams<{ id: string }>();
+export default function ClientDetailPage() {
+  return <Suspense><ClientDetail /></Suspense>;
+}
+
+function ClientDetail() {
+  const id = useSearchParams().get('id') ?? '';
   const router = useRouter();
   const { me, staffName, reloadLookups } = useApp();
   const [client, setClient] = useState<Client | null>(null);
@@ -33,7 +38,7 @@ export default function ClientDetail() {
   const [showDone, setShowDone] = useState(false);
 
   const load = useCallback(async () => {
-    const sb = supabase();
+    const sb = api();
     const [c, t, d, i, te] = await Promise.all([
       sb.from('clients').select('*').eq('id', id).single(),
       sb.from('tasks').select('*').eq('client_id', id).order('due_date', { ascending: false, nullsFirst: true }),
@@ -60,7 +65,7 @@ export default function ClientDetail() {
 
   const deleteClient = async () => {
     if (!confirm(`Delete ${client.name} and all their tasks, documents and time entries? Invoices must be removed first.`)) return;
-    const { error } = await supabase().from('clients').delete().eq('id', client.id);
+    const { error } = await api().from('clients').delete().eq('id', client.id);
     if (error) return alert(error.message);
     await reloadLookups();
     router.replace('/clients');
@@ -74,7 +79,7 @@ export default function ClientDetail() {
         subtitle={`${client.client_type.toUpperCase()} · Manager: ${staffName(client.assigned_to)}${client.status === 'inactive' ? ' · INACTIVE' : ''}`}
         actions={<>
           <Button variant="secondary" onClick={() => setModal('edit')}><Pencil size={15} /> Edit</Button>
-          <Link href={`/invoices/new?client=${client.id}`}><Button variant="secondary">New invoice</Button></Link>
+          <Link href={`/invoices/new/?client=${client.id}`}><Button variant="secondary">New invoice</Button></Link>
           <Button onClick={() => setModal('task')}><Plus size={16} /> Task</Button>
         </>}
       />
@@ -124,7 +129,7 @@ export default function ClientDetail() {
               {!visibleTasks.length ? <Empty>No tasks.</Empty> : (
                 <Table head={['Task', 'Period', 'Due', 'Assignee', 'Status', 'Fee']}>
                   {visibleTasks.map((t) => (
-                    <tr key={t.id} className="cursor-pointer hover:bg-slate-50" onClick={() => router.push(`/tasks/${t.id}`)}>
+                    <tr key={t.id} className="cursor-pointer hover:bg-slate-50" onClick={() => router.push(`/tasks/view/?id=${t.id}`)}>
                       <Td><span className="font-medium">{t.title}</span><div className="text-xs text-slate-500">{t.category}{t.acknowledgement_no ? ` · ARN ${t.acknowledgement_no}` : ''}</div></Td>
                       <Td>{t.period}</Td>
                       <Td><div className="whitespace-nowrap">{fmtDate(t.due_date)}</div><DueBadge days={daysUntil(t.due_date)} done={t.status === 'done'} /></Td>
@@ -164,7 +169,7 @@ export default function ClientDetail() {
                 <Table head={['Invoice', 'Date', 'Total', 'Paid', 'Balance', 'Status']}>
                   {invoices.map((i) => (
                     <tr key={i.id} className="hover:bg-slate-50">
-                      <Td><Link className="font-medium text-brand-700" href={`/invoices/${i.id}`}>{i.invoice_no}</Link></Td>
+                      <Td><Link className="font-medium text-brand-700" href={`/invoices/view/?id=${i.id}`}>{i.invoice_no}</Link></Td>
                       <Td>{fmtDate(i.issue_date)}</Td>
                       <Td>{inr(i.total)}</Td>
                       <Td>{inr(i.paid)}</Td>

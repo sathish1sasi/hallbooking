@@ -1,4 +1,8 @@
 node_modules
 .next
-.env.local
+out
+build-cpanel
+deploy
 *.tsbuildinfo
+.env.local
+php-api/config.php

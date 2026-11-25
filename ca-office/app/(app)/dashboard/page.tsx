@@ -2,7 +2,7 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Plus } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
+import { api } from '@/lib/api';
 import { addDays, todayISO } from '@/lib/format';
 import type { Todo } from '@/lib/types';
 import { useApp } from '@/components/AppContext';
@@ -33,13 +33,13 @@ export default function Dashboard() {
   const today = todayISO();
 
   const loadTodos = useCallback(async () => {
-    const { data } = await supabase().from('todos').select('*').order('due_date').limit(200);
+    const { data } = await api().from('todos').select('*').order('due_date').limit(200);
     setTodos((data ?? []) as Todo[]);
   }, []);
 
   useEffect(() => {
     if (!me) return;
-    const sb = supabase();
+    const sb = api();
     sb.from('tasks').select('id, category, status, due_date, assigned_to, created_at, completed_at, billed, fee').limit(10000)
       .then(({ data }: { data: T[] | null }) => setTasks(data ?? []));
     sb.from('packages').select('id', { count: 'exact', head: true }).eq('active', true).lte('next_bill_date', today)
@@ -101,13 +101,13 @@ export default function Dashboard() {
   const addTodo = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newTodo.trim()) return;
-    await supabase().from('todos').insert({ title: newTodo.trim(), due_date: todoTab === 'upcoming' ? addDays(today, 1) : today });
+    await api().from('todos').insert({ title: newTodo.trim(), due_date: todoTab === 'upcoming' ? addDays(today, 1) : today });
     setNewTodo('');
     loadTodos();
   };
   const toggleTodo = async (t: Todo) => {
     setTodos(todos.map((x) => (x.id === t.id ? { ...x, done: !x.done } : x)));
-    await supabase().from('todos').update({ done: !t.done }).eq('id', t.id);
+    await api().from('todos').update({ done: !t.done }).eq('id', t.id);
   };
 
   if (!tasks) return <p className="py-10 text-center text-sm text-slate-500">Loading dashboard…</p>;

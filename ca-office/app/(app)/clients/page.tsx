@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import { Plus, Search } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
+import { api } from '@/lib/api';
 import { SERVICES } from '@/lib/compliance';
 import type { Client } from '@/lib/types';
 import { useApp } from '@/components/AppContext';
@@ -20,7 +20,7 @@ export default function ClientsPage() {
   const [adding, setAdding] = useState(false);
 
   useEffect(() => {
-    supabase().from('clients').select('*').order('name').then(({ data }: { data: Client[] | null }) => setRows(data ?? []));
+    api().from('clients').select('*').order('name').then(({ data }: { data: Client[] | null }) => setRows(data ?? []));
   }, []);
 
   const filtered = useMemo(() => {
@@ -69,8 +69,8 @@ export default function ClientsPage() {
         {!rows ? <Empty>Loading…</Empty> : !filtered.length ? <Empty>No clients match.</Empty> : (
           <Table head={['Name', 'Type', 'PAN', 'GSTIN', 'Contact', 'Manager', 'Services']}>
             {filtered.map((c) => (
-              <tr key={c.id} className="cursor-pointer hover:bg-slate-50" onClick={() => router.push(`/clients/${c.id}`)}>
-                <Td><Link href={`/clients/${c.id}`} className="font-medium text-slate-900">{c.name}</Link></Td>
+              <tr key={c.id} className="cursor-pointer hover:bg-slate-50" onClick={() => router.push(`/clients/view/?id=${c.id}`)}>
+                <Td><Link href={`/clients/view/?id=${c.id}`} className="font-medium text-slate-900">{c.name}</Link></Td>
                 <Td className="capitalize">{c.client_type}</Td>
                 <Td className="font-mono text-xs">{c.pan ?? '—'}</Td>
                 <Td className="font-mono text-xs">{c.gstin ?? '—'}</Td>
@@ -84,7 +84,7 @@ export default function ClientsPage() {
       </Card>
       {adding && (
         <Modal title="New client" wide onClose={() => setAdding(false)}>
-          <ClientForm onSaved={(c) => router.push(`/clients/${c.id}`)} />
+          <ClientForm onSaved={(c) => router.push(`/clients/view/?id=${c.id}`)} />
         </Modal>
       )}
     </>

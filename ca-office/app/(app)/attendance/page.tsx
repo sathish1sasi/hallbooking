@@ -1,7 +1,7 @@
 'use client';
 import { useCallback, useEffect, useState } from 'react';
 import { LogIn, LogOut } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
+import { api } from '@/lib/api';
 import { addDays, todayISO } from '@/lib/format';
 import type { Attendance } from '@/lib/types';
 import { useApp } from '@/components/AppContext';
@@ -27,7 +27,7 @@ export default function AttendancePage() {
   const dates = Array.from({ length: daysInMonth }, (_, i) => `${month}-${String(i + 1).padStart(2, '0')}`);
 
   const load = useCallback(async () => {
-    const { data } = await supabase().from('attendance').select('*').gte('work_date', `${month}-01`).lte('work_date', `${month}-${daysInMonth}`);
+    const { data } = await api().from('attendance').select('*').gte('work_date', `${month}-01`).lte('work_date', `${month}-${daysInMonth}`);
     setRows((data ?? []) as Attendance[]);
   }, [month, daysInMonth]);
   useEffect(() => { load(); }, [load]);
@@ -36,7 +36,7 @@ export default function AttendancePage() {
 
   const upsert = async (userId: string, date: string, patch: Partial<Attendance>) => {
     setError(null);
-    const { error } = await supabase().from('attendance').upsert({ user_id: userId, work_date: date, ...patch }, { onConflict: 'user_id,work_date' });
+    const { error } = await api().from('attendance').upsert({ user_id: userId, work_date: date, ...patch }, { onConflict: 'user_id,work_date' });
     if (error) setError(error.message);
     load();
   };
@@ -47,7 +47,7 @@ export default function AttendancePage() {
     const order: (Attendance['status'] | null)[] = [null, 'present', 'half_day', 'leave', 'wfh'];
     const next = order[(order.indexOf(cur ?? null) + 1) % order.length];
     if (next === null) {
-      supabase().from('attendance').delete().eq('user_id', userId).eq('work_date', date).then(load);
+      api().from('attendance').delete().eq('user_id', userId).eq('work_date', date).then(load);
     } else upsert(userId, date, { status: next });
   };
 

@@ -1,35 +1,36 @@
 'use client';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Calculator } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
+import { api } from '@/lib/api';
 import { Button, ErrorNote, Field, Input } from '@/components/ui';
 
 export default function LoginPage() {
   const router = useRouter();
-  const [mode, setMode] = useState<'signin' | 'signup'>('signin');
+  const [firstRun, setFirstRun] = useState<boolean | null>(null);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
   const [error, setError] = useState<string | null>(null);
-  const [info, setInfo] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    api().auth.status().then(({ data, error }) => {
+      if (error) { setError(error.message); setFirstRun(false); return; }
+      if (data?.user) router.replace('/dashboard/');
+      else setFirstRun(!data?.hasUsers);
+    });
+  }, [router]);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setBusy(true); setError(null); setInfo(null);
-    const sb = supabase();
-    if (mode === 'signin') {
-      const { error } = await sb.auth.signInWithPassword({ email, password });
-      if (error) setError(error.message);
-      else { router.replace('/dashboard'); router.refresh(); }
-    } else {
-      const { data, error } = await sb.auth.signUp({ email, password, options: { data: { full_name: fullName } } });
-      if (error) setError(error.message);
-      else if (!data.session) setInfo('Account created. Check your email to confirm, then sign in.');
-      else { router.replace('/dashboard'); router.refresh(); }
-    }
+    setBusy(true); setError(null);
+    const { error } = firstRun
+      ? await api().auth.signUp({ email, password, options: { data: { full_name: fullName } } })
+      : await api().auth.signInWithPassword({ email, password });
     setBusy(false);
+    if (error) setError(error.message);
+    else router.replace('/dashboard/');
   };
 
   return (
@@ -39,18 +40,17 @@ export default function LoginPage() {
           <Calculator size={26} />
           <h1 className="text-xl font-semibold text-slate-900">CA Office Manager</h1>
         </div>
-        <p className="text-sm text-slate-500">{mode === 'signin' ? 'Sign in to your office workspace.' : 'Create a staff account. The first account becomes the admin.'}</p>
-        {mode === 'signup' && (
-          <Field label="Full name"><Input required value={fullName} onChange={(e) => setFullName(e.target.value)} /></Field>
+        {firstRun === null ? <p className="text-sm text-slate-500">Loading…</p> : (
+          <>
+            <p className="text-sm text-slate-500">{firstRun ? 'Create the admin account for your firm.' : 'Sign in to your office workspace.'}</p>
+            {firstRun && <Field label="Full name"><Input required value={fullName} onChange={(e) => setFullName(e.target.value)} /></Field>}
+            <Field label="Email"><Input type="email" autoComplete="username" required value={email} onChange={(e) => setEmail(e.target.value)} /></Field>
+            <Field label="Password"><Input type="password" autoComplete={firstRun ? 'new-password' : 'current-password'} required minLength={firstRun ? 8 : 1} value={password} onChange={(e) => setPassword(e.target.value)} /></Field>
+            <ErrorNote error={error} />
+            <Button className="w-full" disabled={busy}>{busy ? 'Please wait…' : firstRun ? 'Create admin account' : 'Sign in'}</Button>
+            {!firstRun && <p className="text-center text-xs text-slate-500">New staff accounts are created by your admin under Users. Forgot your password? Ask your admin to reset it.</p>}
+          </>
         )}
-        <Field label="Email"><Input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} /></Field>
-        <Field label="Password"><Input type="password" required minLength={6} value={password} onChange={(e) => setPassword(e.target.value)} /></Field>
-        <ErrorNote error={error} />
-        {info && <p className="rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{info}</p>}
-        <Button className="w-full" disabled={busy}>{busy ? 'Please wait…' : mode === 'signin' ? 'Sign in' : 'Create account'}</Button>
-        <button type="button" className="w-full text-sm text-brand-600 hover:underline" onClick={() => setMode(mode === 'signin' ? 'signup' : 'signin')}>
-          {mode === 'signin' ? 'New here? Create an account' : 'Already have an account? Sign in'}
-        </button>
       </form>
     </div>
   );

@@ -2,7 +2,7 @@
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { Plus, Search } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
+import { api } from '@/lib/api';
 import { daysUntil, fmtDate, inr } from '@/lib/format';
 import { Button, Card, Empty, Input, InvoiceStatusBadge, PageHeader, Select, Table, Td } from '@/components/ui';
 
@@ -18,7 +18,7 @@ export default function InvoicesPage() {
 
   useEffect(() => {
     (async () => {
-      const sb = supabase();
+      const sb = api();
       const [b, c] = await Promise.all([
         sb.from('invoice_balances').select('*').order('issue_date', { ascending: false }).limit(1000),
         sb.from('clients').select('id, name'),
@@ -66,8 +66,8 @@ export default function InvoicesPage() {
               const late = Number(r.balance) > 0 && r.status !== 'cancelled' && r.due_date && (daysUntil(r.due_date) ?? 0) < 0;
               return (
                 <tr key={r.id} className="hover:bg-slate-50">
-                  <Td><Link href={`/invoices/${r.id}`} className="font-medium text-brand-700">{r.invoice_no}</Link></Td>
-                  <Td><Link href={`/clients/${r.client_id}`} className="hover:text-brand-600">{r.clients?.name}</Link></Td>
+                  <Td><Link href={`/invoices/view/?id=${r.id}`} className="font-medium text-brand-700">{r.invoice_no}</Link></Td>
+                  <Td><Link href={`/clients/view/?id=${r.client_id}`} className="hover:text-brand-600">{r.clients?.name}</Link></Td>
                   <Td className="whitespace-nowrap">{fmtDate(r.issue_date)}</Td>
                   <Td className={`whitespace-nowrap ${late ? 'text-red-600' : ''}`}>{fmtDate(r.due_date)}</Td>
                   <Td>{inr(r.total)}</Td>

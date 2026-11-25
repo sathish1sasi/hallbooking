@@ -2,7 +2,7 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
+import { api } from '@/lib/api';
 import { addDays, fmtDate, inr, todayISO } from '@/lib/format';
 import type { TimeEntry } from '@/lib/types';
 import { useApp } from '@/components/AppContext';
@@ -20,7 +20,7 @@ export default function TimesheetsPage() {
 
   const load = useCallback(async () => {
     if (!me) return;
-    let q = supabase().from('time_entries').select('*, clients(name), profiles(full_name)')
+    let q = api().from('time_entries').select('*, clients(name), profiles(full_name)')
       .gte('work_date', from).lte('work_date', to).order('work_date', { ascending: false });
     if (who === 'me') q = q.eq('user_id', me.id);
     else if (who) q = q.eq('user_id', who);
@@ -47,7 +47,7 @@ export default function TimesheetsPage() {
 
   const remove = async (id: string) => {
     if (!confirm('Delete this entry?')) return;
-    const { error } = await supabase().from('time_entries').delete().eq('id', id);
+    const { error } = await api().from('time_entries').delete().eq('id', id);
     if (error) alert(error.message); else load();
   };
 
@@ -76,7 +76,7 @@ export default function TimesheetsPage() {
               {rows.map((r) => (
                 <tr key={r.id}>
                   <Td className="whitespace-nowrap">{fmtDate(r.work_date)}</Td>
-                  <Td><Link className="hover:text-brand-600" href={`/clients/${r.client_id}`}>{r.clients?.name}</Link></Td>
+                  <Td><Link className="hover:text-brand-600" href={`/clients/view/?id=${r.client_id}`}>{r.clients?.name}</Link></Td>
                   <Td>{r.profiles?.full_name}</Td>
                   <Td>{Number(r.hours).toFixed(2)}{!r.billable && <div className="text-xs text-slate-400">non-billable</div>}</Td>
                   <Td>{r.description}</Td>
@@ -120,13 +120,13 @@ function TimeForm({ clients, onSaved }: { clients: { id: string; name: string }[
 
   useEffect(() => {
     if (!f.client_id) { setTasks([]); return; }
-    supabase().from('tasks').select('id, title, period').eq('client_id', f.client_id).neq('status', 'done').order('due_date')
+    api().from('tasks').select('id, title, period').eq('client_id', f.client_id).neq('status', 'done').order('due_date')
       .then(({ data }: { data: typeof tasks | null }) => setTasks(data ?? []));
   }, [f.client_id]);
 
   const save = async (e: React.FormEvent) => {
     e.preventDefault();
-    const { error } = await supabase().from('time_entries').insert({
+    const { error } = await api().from('time_entries').insert({
       ...f, task_id: f.task_id || null, hours: Number(f.hours), description: f.description || null,
     });
     if (error) return setError(error.message);

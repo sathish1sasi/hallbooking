@@ -2,7 +2,7 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Plus, Search } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
+import { api } from '@/lib/api';
 import { daysUntil, fmtDate } from '@/lib/format';
 import type { DocumentRow } from '@/lib/types';
 import { DocumentForm } from '@/components/forms';
@@ -19,7 +19,7 @@ export default function DocumentsPage() {
   const [modal, setModal] = useState<null | 'new' | DocumentRow>(null);
 
   const load = useCallback(async () => {
-    let query = supabase().from('documents').select('*, clients(name)').order('requested_on').limit(1000);
+    let query = api().from('documents').select('*, clients(name)').order('requested_on').limit(1000);
     if (status) query = query.eq('status', status);
     const { data } = await query;
     setDocs((data ?? []) as DocumentRow[]);
@@ -62,7 +62,7 @@ export default function DocumentsPage() {
               const age = -(daysUntil(d.requested_on) ?? 0);
               return (
                 <tr key={d.id} className="hover:bg-slate-50">
-                  <Td><Link href={`/clients/${d.client_id}`} className="font-medium hover:text-brand-600">{d.clients?.name}</Link></Td>
+                  <Td><Link href={`/clients/view/?id=${d.client_id}`} className="font-medium hover:text-brand-600">{d.clients?.name}</Link></Td>
                   <Td>
                     <button className="text-left hover:text-brand-600" onClick={() => setModal(d)}>{d.name}</button>
                     {d.notes && <div className="text-xs text-slate-500">{d.notes}</div>}

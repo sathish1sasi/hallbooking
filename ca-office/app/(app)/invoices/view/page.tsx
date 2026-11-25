@@ -1,16 +1,21 @@
 'use client';
 import Link from 'next/link';
-import { useParams, useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { Suspense } from 'react';
 import { useCallback, useEffect, useState } from 'react';
 import { ArrowLeft, Printer } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
+import { api } from '@/lib/api';
 import { amountInWords, fmtDate, inr, todayISO } from '@/lib/format';
 import type { FirmSettings, Invoice, InvoiceItem, Payment } from '@/lib/types';
 import { useApp } from '@/components/AppContext';
 import { Button, Card, ErrorNote, Field, Input, InvoiceStatusBadge, Select, Table, Td } from '@/components/ui';
 
-export default function InvoiceDetail() {
-  const { id } = useParams<{ id: string }>();
+export default function InvoiceDetailPage() {
+  return <Suspense><InvoiceDetail /></Suspense>;
+}
+
+function InvoiceDetail() {
+  const id = useSearchParams().get('id') ?? '';
   const router = useRouter();
   const { me } = useApp();
   const [inv, setInv] = useState<Invoice | null>(null);
@@ -21,7 +26,7 @@ export default function InvoiceDetail() {
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    const sb = supabase();
+    const sb = api();
     const [i, it, p, f] = await Promise.all([
       sb.from('invoices').select('*, clients(name, gstin, pan, address, state, email)').eq('id', id).single(),
       sb.from('invoice_items').select('*').eq('invoice_id', id),
@@ -44,7 +49,7 @@ export default function InvoiceDetail() {
   const addPayment = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-    const { error } = await supabase().from('payments').insert({
+    const { error } = await api().from('payments').insert({
       invoice_id: inv.id, amount: Number(pay.amount), paid_on: pay.paid_on, mode: pay.mode, reference: pay.reference || null,
     });
     if (error) return setError(error.message);
@@ -54,19 +59,19 @@ export default function InvoiceDetail() {
 
   const removePayment = async (pid: string) => {
     if (!confirm('Delete this payment?')) return;
-    const { error } = await supabase().from('payments').delete().eq('id', pid);
+    const { error } = await api().from('payments').delete().eq('id', pid);
     if (error) return alert(error.message);
     load();
   };
 
   const unbillTasks = async () => {
     const ids = items.map((i) => i.task_id).filter(Boolean) as string[];
-    if (ids.length) await supabase().from('tasks').update({ billed: false }).in('id', ids);
+    if (ids.length) await api().from('tasks').update({ billed: false }).in('id', ids);
   };
 
   const cancel = async () => {
     if (!confirm('Cancel this invoice? Linked tasks will become unbilled again.')) return;
-    const { error } = await supabase().from('invoices').update({ status: 'cancelled' }).eq('id', inv.id);
+    const { error } = await api().from('invoices').update({ status: 'cancelled' }).eq('id', inv.id);
     if (error) return alert(error.message);
     await unbillTasks();
     load();
@@ -75,7 +80,7 @@ export default function InvoiceDetail() {
   const remove = async () => {
     if (!confirm('Permanently delete this invoice? (Cancelling is usually better for GST records.)')) return;
     await unbillTasks();
-    const { error } = await supabase().from('invoices').delete().eq('id', inv.id);
+    const { error } = await api().from('invoices').delete().eq('id', inv.id);
     if (error) return alert(error.message);
     router.replace('/invoices');
   };

@@ -1,7 +1,7 @@
 'use client';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ChevronLeft, ChevronRight, Wand2 } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
+import { api } from '@/lib/api';
 import { dueItemsForMonth, SERVICES, type DueItem } from '@/lib/compliance';
 import { daysUntil, fmtDate } from '@/lib/format';
 import { Badge, Button, Card, DueBadge, Empty, ErrorNote, PageHeader } from '@/components/ui';
@@ -26,7 +26,7 @@ export default function CompliancePage() {
   const items = useMemo(() => dueItemsForMonth(ym.y, ym.m), [ym]);
 
   const load = useCallback(async () => {
-    const sb = supabase();
+    const sb = api();
     const keys = items.map((i) => i.key);
     const [c, t] = await Promise.all([
       sb.from('clients').select('id, name, services, assigned_to').eq('status', 'active').order('name'),
@@ -56,10 +56,10 @@ export default function CompliancePage() {
         })),
     );
     if (!rows.length) { setBusy(null); setMsg('All tasks for this selection already exist.'); return; }
-    const { data: created, error } = await supabase().from('tasks')
+    const { data: created, error } = await api().from('tasks')
       .upsert(rows, { onConflict: 'client_id,compliance_key', ignoreDuplicates: true }).select('id, category');
     if (!error && created?.length) {
-      await supabase().from('task_checklist').insert(
+      await api().from('task_checklist').insert(
         created.flatMap((t: { id: string; category: string }) => stepsFor(t.category).map((label, n) => ({ task_id: t.id, label, position: n + 1 }))));
     }
     setBusy(null);
@@ -134,7 +134,7 @@ export default function CompliancePage() {
                           {cl.map((c) => {
                             const st = statusFor(it, c.id);
                             return (
-                              <a key={c.id} href={`/clients/${c.id}`}
+                              <a key={c.id} href={`/clients/view/?id=${c.id}`}
                                 className={`rounded-full px-2.5 py-1 text-xs ${st === 'done' ? 'bg-emerald-100 text-emerald-700' : st ? 'bg-blue-50 text-blue-700' : 'bg-slate-100 text-slate-600'}`}>
                                 {c.name}{st === 'done' ? ' ✓' : ''}
                               </a>

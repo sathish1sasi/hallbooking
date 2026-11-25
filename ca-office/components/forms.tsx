@@ -1,6 +1,6 @@
 'use client';
 import { useState } from 'react';
-import { supabase } from '@/lib/supabase';
+import { api } from '@/lib/api';
 import { SERVICES, TASK_CATEGORIES } from '@/lib/compliance';
 import { stepsFor } from '@/lib/checklists';
 import { todayISO, validGSTIN, validPAN } from '@/lib/format';
@@ -47,8 +47,8 @@ export function ClientForm({ client, onSaved }: { client?: Client; onSaved: (c: 
     setBusy(true); setError(null);
     const payload = blankToNull({ ...f, pan: f.pan.toUpperCase(), gstin: f.gstin.toUpperCase(), tan: f.tan.toUpperCase() });
     const q = client
-      ? supabase().from('clients').update(payload).eq('id', client.id).select().single()
-      : supabase().from('clients').insert(payload).select().single();
+      ? api().from('clients').update(payload).eq('id', client.id).select().single()
+      : api().from('clients').insert(payload).select().single();
     const { data, error } = await q;
     setBusy(false);
     if (error) return setError(error.message);
@@ -147,12 +147,12 @@ export function TaskForm({ task, clientId, onSaved, onDeleted }: {
     const payload = blankToNull({ ...f, fee: Number(f.fee) || 0 });
     let error;
     if (task) {
-      ({ error } = await supabase().from('tasks').update(payload).eq('id', task.id));
+      ({ error } = await api().from('tasks').update(payload).eq('id', task.id));
     } else {
-      const res = await supabase().from('tasks').insert(payload).select('id').single();
+      const res = await api().from('tasks').insert(payload).select('id').single();
       error = res.error;
       if (!error && withSteps) {
-        await supabase().from('task_checklist').insert(stepsFor(f.category).map((label, i) => ({ task_id: res.data.id, label, position: i + 1 })));
+        await api().from('task_checklist').insert(stepsFor(f.category).map((label, i) => ({ task_id: res.data.id, label, position: i + 1 })));
       }
     }
     setBusy(false);
@@ -162,7 +162,7 @@ export function TaskForm({ task, clientId, onSaved, onDeleted }: {
 
   const remove = async () => {
     if (!task || !confirm('Delete this task?')) return;
-    const { error } = await supabase().from('tasks').delete().eq('id', task.id);
+    const { error } = await api().from('tasks').delete().eq('id', task.id);
     if (error) return setError(error.message);
     onDeleted?.();
   };
@@ -234,7 +234,7 @@ export function DocumentForm({ doc, clientId, onSaved }: { doc?: DocumentRow; cl
   const save = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-    const sb = supabase();
+    const sb = api();
     let res;
     if (doc) {
       res = await sb.from('documents').update(blankToNull(f)).eq('id', doc.id);

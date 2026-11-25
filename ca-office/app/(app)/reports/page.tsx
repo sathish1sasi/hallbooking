@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useMemo, useState } from 'react';
 import { Download } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
+import { api } from '@/lib/api';
 import { downloadCsv } from '@/lib/csv';
 import { inr, todayISO } from '@/lib/format';
 import { useApp } from '@/components/AppContext';
@@ -21,7 +21,7 @@ export default function ReportsPage() {
   const [data, setData] = useState<{ tasks: Tk[]; time: Te[]; inv: Bal[] } | null>(null);
 
   useEffect(() => {
-    const sb = supabase();
+    const sb = api();
     Promise.all([
       sb.from('tasks').select('id, client_id, category, status, due_date, assigned_to, completed_at, fee').gte('due_date', from).lte('due_date', to).limit(20000),
       sb.from('time_entries').select('user_id, client_id, hours, billable, work_date').gte('work_date', from).lte('work_date', to).limit(20000),

@@ -2,7 +2,7 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 import { ArrowLeft, Plus, RefreshCw } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
+import { api } from '@/lib/api';
 import { TASK_CATEGORIES } from '@/lib/compliance';
 import { stepsFor } from '@/lib/checklists';
 import { addDays, fmtDate, inr, todayISO } from '@/lib/format';
@@ -22,14 +22,14 @@ export default function RecurringPage() {
   const [busy, setBusy] = useState(false);
 
   const load = useCallback(async () => {
-    const { data } = await supabase().from('recurring_tasks').select('*, clients(name)').order('next_due');
+    const { data } = await api().from('recurring_tasks').select('*, clients(name)').order('next_due');
     setRows((data ?? []) as RecurringTask[]);
   }, []);
   useEffect(() => { load(); }, [load]);
 
   const generate = async () => {
     setBusy(true); setError(null); setMsg(null);
-    const { data, error } = await supabase().rpc('generate_recurring_tasks', { p_lead_days: 7 });
+    const { data, error } = await api().rpc('generate_recurring_tasks', { p_lead_days: 7 });
     setBusy(false);
     if (error) return setError(error.message);
     setMsg(data ? `Created ${data} task${data === 1 ? '' : 's'} due in the next 7 days.` : 'Nothing new: every task due in the next 7 days already exists.');
@@ -92,13 +92,13 @@ function RecurringForm({ rec, canDelete, onSaved }: { rec?: RecurringTask; canDe
       ...f, anchor_day: Math.min(31, Math.max(1, Number(f.anchor_day) || 1)), fee: Number(f.fee) || 0,
       assigned_to: f.assigned_to || null, checklist: f.checklist.split('\n').map((s) => s.trim()).filter(Boolean),
     };
-    const { error } = rec ? await supabase().from('recurring_tasks').update(payload).eq('id', rec.id) : await supabase().from('recurring_tasks').insert(payload);
+    const { error } = rec ? await api().from('recurring_tasks').update(payload).eq('id', rec.id) : await api().from('recurring_tasks').insert(payload);
     if (error) return setError(error.message);
     onSaved();
   };
   const remove = async () => {
     if (!rec) return;
-    const { error } = await supabase().from('recurring_tasks').delete().eq('id', rec.id);
+    const { error } = await api().from('recurring_tasks').delete().eq('id', rec.id);
     if (error) return setError(error.message);
     onSaved();
   };

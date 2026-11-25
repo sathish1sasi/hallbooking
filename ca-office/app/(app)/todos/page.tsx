@@ -1,7 +1,7 @@
 'use client';
 import { useCallback, useEffect, useState } from 'react';
 import { Trash2 } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
+import { api } from '@/lib/api';
 import { fmtDate, todayISO } from '@/lib/format';
 import type { Todo } from '@/lib/types';
 import { useApp } from '@/components/AppContext';
@@ -14,7 +14,7 @@ export default function TodosPage() {
   const today = todayISO();
 
   const load = useCallback(async () => {
-    const { data } = await supabase().from('todos').select('*').order('done').order('due_date').limit(500);
+    const { data } = await api().from('todos').select('*').order('done').order('due_date').limit(500);
     setRows((data ?? []) as Todo[]);
   }, []);
   useEffect(() => { load(); }, [load]);
@@ -22,12 +22,12 @@ export default function TodosPage() {
   const add = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!f.title.trim()) return;
-    await supabase().from('todos').insert({ ...f, title: f.title.trim(), client_id: f.client_id || null });
+    await api().from('todos').insert({ ...f, title: f.title.trim(), client_id: f.client_id || null });
     setF({ ...f, title: '' });
     load();
   };
-  const toggle = async (t: Todo) => { await supabase().from('todos').update({ done: !t.done }).eq('id', t.id); load(); };
-  const remove = async (t: Todo) => { await supabase().from('todos').delete().eq('id', t.id); load(); };
+  const toggle = async (t: Todo) => { await api().from('todos').update({ done: !t.done }).eq('id', t.id); load(); };
+  const remove = async (t: Todo) => { await api().from('todos').delete().eq('id', t.id); load(); };
   const name = (id: string | null) => clients.find((c) => c.id === id)?.name;
 
   const sections = [

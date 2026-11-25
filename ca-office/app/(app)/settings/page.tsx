@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { supabase } from '@/lib/supabase';
+import { api } from '@/lib/api';
 import { validGSTIN, validPAN } from '@/lib/format';
 import { INDIAN_STATES, type FirmSettings } from '@/lib/types';
 import { useApp } from '@/components/AppContext';
@@ -13,7 +13,7 @@ export default function SettingsPage() {
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {
-    supabase().from('firm_settings').select('*').single().then(({ data }: { data: FirmSettings | null }) => setF(data));
+    api().from('firm_settings').select('*').single().then(({ data }: { data: FirmSettings | null }) => setF(data));
   }, []);
 
   if (me && me.role !== 'admin') return <Empty>Only admins can change firm settings.</Empty>;
@@ -30,7 +30,7 @@ export default function SettingsPage() {
     if (f.gstin && !validGSTIN(f.gstin)) return setError('GSTIN format looks wrong.');
     setError(null);
     const { id, ...rest } = f;
-    const { error } = await supabase().from('firm_settings').update({ ...rest, pan: f.pan?.toUpperCase() || null, gstin: f.gstin?.toUpperCase() || null }).eq('id', id);
+    const { error } = await api().from('firm_settings').update({ ...rest, pan: f.pan?.toUpperCase() || null, gstin: f.gstin?.toUpperCase() || null }).eq('id', id);
     if (error) setError(error.message); else setSaved(true);
   };
 

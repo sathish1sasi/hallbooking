@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 import { Plus } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
+import { api } from '@/lib/api';
 import { addDays, fmtDate, inr, todayISO } from '@/lib/format';
 import type { FirmSettings, Package } from '@/lib/types';
 import { useApp } from '@/components/AppContext';
@@ -21,7 +21,7 @@ export default function PackagesPage() {
   const today = todayISO();
 
   const load = useCallback(async () => {
-    const { data } = await supabase().from('packages').select('*, clients(name)').order('next_bill_date');
+    const { data } = await api().from('packages').select('*, clients(name)').order('next_bill_date');
     setRows((data ?? []) as Package[]);
   }, []);
   useEffect(() => { load(); }, [load]);
@@ -32,7 +32,7 @@ export default function PackagesPage() {
   // Create an invoice for one package and move its next billing date forward.
   const invoice = async (p: Package) => {
     setBusy(p.id); setError(null);
-    const sb = supabase();
+    const sb = api();
     const [{ data: firm }, { data: no, error: e1 }] = await Promise.all([
       sb.from('firm_settings').select('*').single(),
       sb.rpc('next_invoice_number', { p_date: today }),
@@ -47,7 +47,7 @@ export default function PackagesPage() {
     if (e2) { setBusy(null); return setError(e2.message); }
     await sb.from('invoice_items').insert({ invoice_id: inv.id, description: `${p.name} (${FREQ[p.frequency]}) — period from ${fmtDate(p.next_bill_date)}`, qty: 1, rate: p.fee });
     await sb.rpc('advance_package', { p_id: p.id });
-    router.push(`/invoices/${inv.id}`);
+    router.push(`/invoices/view/?id=${inv.id}`);
   };
 
   return (
@@ -65,7 +65,7 @@ export default function PackagesPage() {
           <Table head={['Client', 'Package', 'Frequency', 'Fee', 'Next bill', '']}>
             {rows.map((p) => (
               <tr key={p.id} className={p.active ? '' : 'opacity-50'}>
-                <Td><Link href={`/clients/${p.client_id}`} className="font-medium hover:text-brand-600">{p.clients?.name}</Link></Td>
+                <Td><Link href={`/clients/view/?id=${p.client_id}`} className="font-medium hover:text-brand-600">{p.clients?.name}</Link></Td>
                 <Td><button className="text-left hover:text-brand-600" onClick={() => setModal(p)}>{p.name}</button></Td>
                 <Td>{FREQ[p.frequency]}</Td>
                 <Td className="tabular-nums">{inr(p.fee)}</Td>
@@ -98,13 +98,13 @@ function PackageForm({ pkg, clients, canDelete, onSaved }: { pkg?: Package; clie
   const save = async (e: React.FormEvent) => {
     e.preventDefault();
     const payload = { ...f, fee: Number(f.fee) };
-    const { error } = pkg ? await supabase().from('packages').update(payload).eq('id', pkg.id) : await supabase().from('packages').insert(payload);
+    const { error } = pkg ? await api().from('packages').update(payload).eq('id', pkg.id) : await api().from('packages').insert(payload);
     if (error) return setError(error.message);
     onSaved();
   };
   const remove = async () => {
     if (!pkg) return;
-    const { error } = await supabase().from('packages').delete().eq('id', pkg.id);
+    const { error } = await api().from('packages').delete().eq('id', pkg.id);
     if (error) return setError(error.message);
     onSaved();
   };

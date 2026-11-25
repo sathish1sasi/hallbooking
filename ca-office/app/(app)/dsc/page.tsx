@@ -2,7 +2,7 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Plus } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
+import { api } from '@/lib/api';
 import { daysUntil, fmtDate } from '@/lib/format';
 import type { Dsc } from '@/lib/types';
 import { useApp } from '@/components/AppContext';
@@ -23,7 +23,7 @@ export default function DscPage() {
   const [modal, setModal] = useState<null | 'new' | Dsc>(null);
 
   const load = useCallback(async () => {
-    const { data } = await supabase().from('dsc').select('*, clients(name, phone)').order('valid_to');
+    const { data } = await api().from('dsc').select('*, clients(name, phone)').order('valid_to');
     setRows((data ?? []) as Dsc[]);
   }, []);
   useEffect(() => { load(); }, [load]);
@@ -49,7 +49,7 @@ export default function DscPage() {
             {shown.map((r) => (
               <tr key={r.id} className="cursor-pointer hover:bg-slate-50" onClick={() => setModal(r)}>
                 <Td className="font-medium">{r.holder_name}<div className="text-xs text-slate-500">{r.issued_by}</div></Td>
-                <Td><Link onClick={(e) => e.stopPropagation()} href={`/clients/${r.client_id}`} className="hover:text-brand-600">{r.clients?.name}</Link></Td>
+                <Td><Link onClick={(e) => e.stopPropagation()} href={`/clients/view/?id=${r.client_id}`} className="hover:text-brand-600">{r.clients?.name}</Link></Td>
                 <Td>{r.dsc_class}</Td>
                 <Td className="whitespace-nowrap">{fmtDate(r.valid_to)}</Td>
                 <Td>{expiry(r.valid_to)}</Td>
@@ -79,13 +79,13 @@ function DscForm({ dsc, clients, canDelete, onSaved }: { dsc?: Dsc; clients: { i
   const save = async (e: React.FormEvent) => {
     e.preventDefault();
     const payload = Object.fromEntries(Object.entries(f).map(([k, v]) => [k, v === '' ? null : v]));
-    const { error } = dsc ? await supabase().from('dsc').update(payload).eq('id', dsc.id) : await supabase().from('dsc').insert(payload);
+    const { error } = dsc ? await api().from('dsc').update(payload).eq('id', dsc.id) : await api().from('dsc').insert(payload);
     if (error) return setError(error.message);
     onSaved();
   };
   const remove = async () => {
     if (!dsc) return;
-    const { error } = await supabase().from('dsc').delete().eq('id', dsc.id);
+    const { error } = await api().from('dsc').delete().eq('id', dsc.id);
     if (error) return setError(error.message);
     onSaved();
   };

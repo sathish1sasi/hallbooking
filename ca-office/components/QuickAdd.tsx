@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import { CheckSquare, FileUp, FileQuestion, ListChecks, Plus, Receipt, UserPlus } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
+import { api } from '@/lib/api';
 import { todayISO } from '@/lib/format';
 import { useApp } from './AppContext';
 import { ClientForm, DocumentForm, TaskForm } from './forms';
@@ -74,7 +74,7 @@ export function QuickAdd({ onCreated }: { onCreated: () => void }) {
       {kind === 'task' && <Modal title="New task" wide onClose={() => setKind(null)}><TaskForm onSaved={() => done('Task created')} /></Modal>}
       {kind === 'client' && (
         <Modal title="New client" wide onClose={() => setKind(null)}>
-          <ClientForm onSaved={(c) => { setKind(null); router.push(`/clients/${c.id}`); }} />
+          <ClientForm onSaved={(c) => { setKind(null); router.push(`/clients/view/?id=${c.id}`); }} />
         </Modal>
       )}
       {kind === 'todo' && <Modal title="New to-do" onClose={() => setKind(null)}><TodoQuick onSaved={() => done('To-do added')} /></Modal>}
@@ -96,7 +96,7 @@ function TodoQuick({ onSaved }: { onSaved: () => void }) {
   const [error, setError] = useState<string | null>(null);
   const save = async (e: React.FormEvent) => {
     e.preventDefault();
-    const { error } = await supabase().from('todos').insert({ ...f, title: f.title.trim(), client_id: f.client_id || null });
+    const { error } = await api().from('todos').insert({ ...f, title: f.title.trim(), client_id: f.client_id || null });
     if (error) return setError(error.message);
     onSaved();
   };

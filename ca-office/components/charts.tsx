@@ -42,7 +42,7 @@ export function Ring({ done, total, size = 26 }: { done: number; total: number; 
 export function LineChart({ labels, series, height = 170 }: {
   labels: string[]; series: { name: string; color: string; values: number[] }[]; height?: number;
 }) {
-  const W = 360, H = height, L = 30, R = 10, T = 10, B = 24;
+  const W = 360, H = height, L = 30, R = 30, T = 10, B = 24;
   const max = Math.max(5, ...series.flatMap((s) => s.values));
   const step = Math.ceil(max / 4);
   const top = step * 4;

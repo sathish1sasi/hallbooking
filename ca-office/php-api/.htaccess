@@ -1,0 +1,5 @@
+Options -Indexes
+# Only index.php, install.php are meant to be reached from the web.
+<FilesMatch "^(config\.php|config\.sample\.php|cron\.php|schema\.sql)$">
+  Require all denied
+</FilesMatch>

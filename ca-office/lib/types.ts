@@ -6,6 +6,7 @@ export interface Profile {
   email: string | null;
   role: Role;
   hourly_rate: number;
+  active?: boolean;
 }
 
 export interface Client {

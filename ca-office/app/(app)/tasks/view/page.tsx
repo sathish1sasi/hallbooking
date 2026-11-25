@@ -1,9 +1,10 @@
 'use client';
 import Link from 'next/link';
-import { useParams, useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { Suspense } from 'react';
 import { useCallback, useEffect, useState } from 'react';
 import { ArrowLeft, ListPlus, Pencil, Send, Trash2 } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
+import { api } from '@/lib/api';
 import { stepsFor } from '@/lib/checklists';
 import { daysUntil, fmtDate, inr } from '@/lib/format';
 import { TASK_STATUSES, type ChecklistItem, type DocumentRow, type Task, type TaskComment, type TaskStatus, type TimeEntry } from '@/lib/types';
@@ -21,8 +22,12 @@ const timeAgo = (iso: string) => {
   return new Date(iso).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' });
 };
 
-export default function TaskDetail() {
-  const { id } = useParams<{ id: string }>();
+export default function TaskDetailPage() {
+  return <Suspense><TaskDetail /></Suspense>;
+}
+
+function TaskDetail() {
+  const id = useSearchParams().get('id') ?? '';
   const router = useRouter();
   const { me, staffName } = useApp();
   const [task, setTask] = useState<Task | null>(null);
@@ -37,7 +42,7 @@ export default function TaskDetail() {
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    const sb = supabase();
+    const sb = api();
     const [t, c, cm, d, te] = await Promise.all([
       sb.from('tasks').select('*, clients(name)').eq('id', id).maybeSingle(),
       sb.from('task_checklist').select('*').eq('task_id', id).order('position'),
@@ -63,21 +68,21 @@ export default function TaskDetail() {
 
   const setStatus = async (status: TaskStatus) => {
     setTask({ ...task, status });
-    const { error } = await supabase().from('tasks').update({ status }).eq('id', task.id);
+    const { error } = await api().from('tasks').update({ status }).eq('id', task.id);
     if (error) { setError(error.message); load(); }
   };
 
   const toggle = async (it: ChecklistItem) => {
     const doneNow = !it.done;
     setItems(items.map((x) => (x.id === it.id ? { ...x, done: doneNow } : x)));
-    await supabase().from('task_checklist').update({ done: doneNow, done_by: doneNow ? me?.id : null, done_at: doneNow ? new Date().toISOString() : null }).eq('id', it.id);
+    await api().from('task_checklist').update({ done: doneNow, done_by: doneNow ? me?.id : null, done_at: doneNow ? new Date().toISOString() : null }).eq('id', it.id);
     // Moving a To-do task to In progress once work starts saves a click.
     if (doneNow && task.status === 'todo') setStatus('in_progress');
   };
 
   const addItems = async (labels: string[]) => {
     const rows = labels.map((label, i) => ({ task_id: task.id, label, position: nextPos + i }));
-    const { error } = await supabase().from('task_checklist').insert(rows);
+    const { error } = await api().from('task_checklist').insert(rows);
     if (error) return setError(error.message);
     setNewItem('');
     load();
@@ -85,20 +90,20 @@ export default function TaskDetail() {
 
   const removeItem = async (it: ChecklistItem) => {
     setItems(items.filter((x) => x.id !== it.id));
-    await supabase().from('task_checklist').delete().eq('id', it.id);
+    await api().from('task_checklist').delete().eq('id', it.id);
   };
 
   const postComment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!comment.trim()) return;
-    const { error } = await supabase().from('task_comments').insert({ task_id: task.id, body: comment.trim() });
+    const { error } = await api().from('task_comments').insert({ task_id: task.id, body: comment.trim() });
     if (error) return setError(error.message);
     setComment('');
     load();
   };
 
   const deleteComment = async (c: TaskComment) => {
-    await supabase().from('task_comments').delete().eq('id', c.id);
+    await api().from('task_comments').delete().eq('id', c.id);
     load();
   };
 
@@ -109,7 +114,7 @@ export default function TaskDetail() {
       <Link href="/tasks" className="mb-3 inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-800"><ArrowLeft size={14} /> Tasks</Link>
       <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
         <div>
-          <Link href={`/clients/${task.client_id}`} className="text-sm font-medium text-brand-600 hover:underline">{task.clients?.name}</Link>
+          <Link href={`/clients/view/?id=${task.client_id}`} className="text-sm font-medium text-brand-600 hover:underline">{task.clients?.name}</Link>
           <h1 className="text-2xl font-semibold text-slate-900">{task.title}{task.period && <span className="font-normal text-slate-500"> · {task.period}</span>}</h1>
           <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-slate-500">
             <span>Due {fmtDate(task.due_date)}</span><DueBadge days={daysUntil(task.due_date)} done={task.status === 'done'} />

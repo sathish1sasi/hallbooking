@@ -1,5 +1,5 @@
 'use client';
-import { supabase } from './supabase';
+import { api, newId } from './api';
 
 export const BUCKET = 'client-files';
 export const MAX_FILE_MB = 25;
@@ -14,8 +14,8 @@ const safeName = (n: string) => n.normalize('NFKD').replace(/[^\w.\- ]+/g, '').r
 export async function uploadClientFile(opts: { clientId: string; file: File; taskId?: string | null; documentId?: string; name?: string }) {
   const { clientId, file } = opts;
   if (file.size > MAX_FILE_MB * 1024 * 1024) throw new Error(`${file.name} is larger than ${MAX_FILE_MB} MB.`);
-  const sb = supabase();
-  const path = `${clientId}/${crypto.randomUUID()}-${safeName(file.name)}`;
+  const sb = api();
+  const path = `${clientId}/${newId()}-${safeName(file.name)}`;
   const up = await sb.storage.from(BUCKET).upload(path, file, { contentType: file.type || undefined, upsert: false });
   if (up.error) throw new Error(up.error.message);
   const { data: { user } } = await sb.auth.getUser();
@@ -31,14 +31,14 @@ export async function uploadClientFile(opts: { clientId: string; file: File; tas
 
 /** Open a private file through a short-lived signed link. */
 export async function openFile(path: string) {
-  const { data, error } = await supabase().storage.from(BUCKET).createSignedUrl(path, 60);
+  const { data, error } = await api().storage.from(BUCKET).createSignedUrl(path, 60);
   if (error || !data) throw new Error(error?.message ?? 'Could not open the file.');
   window.open(data.signedUrl, '_blank', 'noopener');
 }
 
 /** Delete the stored file and clear it from the document row (keeps the checklist item). */
 export async function removeFile(docId: string, path: string) {
-  const sb = supabase();
+  const sb = api();
   const rm = await sb.storage.from(BUCKET).remove([path]);
   if (rm.error) throw new Error(rm.error.message);
   await sb.from('documents').update({ file_path: null, file_name: null, file_size: null }).eq('id', docId);

@@ -1,12 +1,12 @@
 'use client';
-import { supabase } from '@/lib/supabase';
+import { api } from '@/lib/api';
 import type { DocumentRow } from '@/lib/types';
 
 const COLORS = { pending: 'bg-amber-50 text-amber-800', received: 'bg-emerald-50 text-emerald-700', returned: 'bg-slate-100 text-slate-600' };
 
 export function DocStatusSelect({ doc, onChanged }: { doc: DocumentRow; onChanged: () => void }) {
   const change = async (status: string) => {
-    const { error } = await supabase().from('documents').update({ status }).eq('id', doc.id);
+    const { error } = await api().from('documents').update({ status }).eq('id', doc.id);
     if (error) alert(error.message);
     onChanged();
   };

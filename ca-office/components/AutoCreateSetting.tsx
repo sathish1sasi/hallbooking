@@ -2,7 +2,7 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { Repeat } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
+import { api } from '@/lib/api';
 import { useApp } from './AppContext';
 
 /** Banner + admin control for the automatic monthly creation of statutory tasks. */
@@ -12,14 +12,14 @@ export function AutoCreateSetting() {
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {
-    supabase().from('firm_settings').select('auto_compliance_days').single()
+    api().from('firm_settings').select('auto_compliance_days').single()
       .then(({ data }: { data: { auto_compliance_days: number } | null }) => setDays(data?.auto_compliance_days ?? 10));
   }, []);
   if (days === null) return null;
 
   const save = async (v: number) => {
     setDays(v); setSaved(false);
-    const { error } = await supabase().from('firm_settings').update({ auto_compliance_days: v }).eq('id', 1);
+    const { error } = await api().from('firm_settings').update({ auto_compliance_days: v }).eq('id', 1);
     if (!error) setSaved(true);
   };
 

@@ -7,7 +7,7 @@ import {
   FileKey2, BarChart3, BellRing, UserCog, Settings, LogOut, Menu, Bell, Search, Calculator, MailCheck, Grid3x3,
 } from 'lucide-react';
 import { QuickAdd } from './QuickAdd';
-import { supabase } from '@/lib/supabase';
+import { api } from '@/lib/api';
 import { addDays, todayISO } from '@/lib/format';
 import { useApp } from './AppContext';
 
@@ -50,7 +50,7 @@ export function Shell({ children }: { children: ReactNode }) {
   // Bell: overdue tasks, today's to-dos, DSCs expiring within 30 days, packages due to bill.
   useEffect(() => {
     if (!me) return;
-    const sb = supabase();
+    const sb = api();
     const t = todayISO();
     Promise.all([
       sb.from('tasks').select('id', { count: 'exact', head: true }).neq('status', 'done').lt('due_date', t),
@@ -78,8 +78,8 @@ export function Shell({ children }: { children: ReactNode }) {
   const alertTotal = alerts.reduce((a, x) => a + x.count, 0);
 
   const signOut = async () => {
-    await supabase().auth.signOut();
-    router.replace('/login');
+    await api().auth.signOut();
+    router.replace('/login/');
     router.refresh();
   };
 
@@ -120,7 +120,7 @@ export function Shell({ children }: { children: ReactNode }) {
               onChange={(e) => { setQ(e.target.value); setShowSearch(true); }}
               onFocus={() => setShowSearch(true)}
               onBlur={() => setTimeout(() => setShowSearch(false), 150)}
-              onKeyDown={(e) => { if (e.key === 'Enter' && matches[0]) { router.push(`/clients/${matches[0].id}`); setQ(''); } }}
+              onKeyDown={(e) => { if (e.key === 'Enter' && matches[0]) { router.push(`/clients/view/?id=${matches[0].id}`); setQ(''); } }}
               placeholder="Search clients"
               aria-label="Search clients"
               className="w-full rounded-lg border border-slate-200 bg-slate-50 py-2 pl-9 pr-3 text-sm focus:border-brand-500 focus:bg-white focus:outline-none"
@@ -129,7 +129,7 @@ export function Shell({ children }: { children: ReactNode }) {
               <ul className="absolute mt-1 w-full overflow-hidden rounded-lg border border-slate-200 bg-white shadow-lg">
                 {matches.map((c) => (
                   <li key={c.id}>
-                    <button onMouseDown={() => { router.push(`/clients/${c.id}`); setQ(''); }} className="block w-full px-3 py-2 text-left text-sm hover:bg-slate-50">{c.name}</button>
+                    <button onMouseDown={() => { router.push(`/clients/view/?id=${c.id}`); setQ(''); }} className="block w-full px-3 py-2 text-left text-sm hover:bg-slate-50">{c.name}</button>
                   </li>
                 ))}
               </ul>
@@ -153,13 +153,13 @@ export function Shell({ children }: { children: ReactNode }) {
                 </div>
               )}
             </div>
-            <div className="flex items-center gap-2">
+            <Link href="/account/" className="flex items-center gap-2 rounded-lg px-1 hover:bg-slate-50" title="My account">
               <span className="grid h-8 w-8 place-items-center rounded-full bg-brand-100 text-xs font-bold text-brand-700">{initials}</span>
               <div className="hidden text-sm leading-tight sm:block">
                 <div className="font-medium text-slate-800">{me?.full_name}</div>
                 <div className="text-xs capitalize text-slate-500">{me?.role}</div>
               </div>
-            </div>
+            </Link>
           </div>
         </header>
         <main key={refreshKey} className="mx-auto max-w-[1400px] p-4 sm:p-6 print:p-0">{children}</main>

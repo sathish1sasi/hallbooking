@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useMemo, useState } from 'react';
 import { Copy, Mail, MessageCircle } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
+import { api } from '@/lib/api';
 import { fmtDate, inr, todayISO, addDays } from '@/lib/format';
 import { Card, Empty, Field, PageHeader, Select, Textarea } from '@/components/ui';
 
@@ -25,14 +25,14 @@ export default function NotifyPage() {
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
-    const sb = supabase();
+    const sb = api();
     sb.from('firm_settings').select('name').single().then(({ data }: { data: { name: string } | null }) => setFirm(data?.name ?? ''));
     sb.from('clients').select('id, name, phone, email, contact_person').eq('status', 'active').then(({ data }: { data: C[] | null }) => setClients(data ?? []));
   }, []);
 
   // Build the per-client list of items for the chosen reminder type.
   useEffect(() => {
-    const sb = supabase();
+    const sb = api();
     const t = todayISO();
     const group = (rows: { client_id: string }[], fmt: (r: any) => string) =>
       rows.reduce<Record<string, string[]>>((acc, r) => ((acc[r.client_id] ??= []).push(fmt(r)), acc), {});

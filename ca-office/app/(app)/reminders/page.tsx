@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { Eye, Send } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
+import { api } from '@/lib/api';
 import { fmtDate } from '@/lib/format';
 import type { FirmSettings } from '@/lib/types';
 import { useApp } from '@/components/AppContext';
@@ -29,11 +29,11 @@ export default function RemindersPage() {
   const [busy, setBusy] = useState<'preview' | 'send' | null>(null);
   const [log, setLog] = useState<Log[]>([]);
 
-  const loadLog = () => supabase().from('reminder_log').select('id, sent_on, kind, channel, status, detail, clients(name)')
+  const loadLog = () => api().from('reminder_log').select('id, sent_on, kind, channel, status, detail, clients(name)')
     .order('created_at', { ascending: false }).limit(100).then(({ data }: { data: Log[] | null }) => setLog(data ?? []));
 
   useEffect(() => {
-    supabase().from('firm_settings').select('*').single().then(({ data }: { data: FirmSettings | null }) => setF(data));
+    api().from('firm_settings').select('*').single().then(({ data }: { data: FirmSettings | null }) => setF(data));
     loadLog();
   }, []);
 
@@ -49,7 +49,7 @@ export default function RemindersPage() {
   const save = async () => {
     setError(null);
     const { reminders_enabled, reminder_deadline_days, reminder_doc_after_days, reminder_repeat_days, reminder_payment_grace_days, reminder_kinds, reminder_channels } = f;
-    const { error } = await supabase().from('firm_settings').update({
+    const { error } = await api().from('firm_settings').update({
       reminders_enabled, reminder_deadline_days, reminder_doc_after_days, reminder_repeat_days, reminder_payment_grace_days, reminder_kinds, reminder_channels,
     }).eq('id', 1);
     if (error) setError(error.message); else setSaved(true);
@@ -57,20 +57,15 @@ export default function RemindersPage() {
 
   const run = async (dry: boolean) => {
     setBusy(dry ? 'preview' : 'send'); setError(null);
-    try {
-      const res = await fetch(`/api/reminders/run${dry ? '?dry=1' : ''}`, { method: 'POST' });
-      const body = await res.json();
-      if (!res.ok) setError(body.error ?? `Request failed (${res.status}).`);
-      else { setPreview(body); if (!dry) loadLog(); }
-    } catch {
-      setError('Could not reach the server. Check your connection and try again.');
-    }
+    const { data, error } = await api().rpc<Summary>('run_daily_job', { dry });
+    if (error) setError(error.message);
+    else { setPreview(data); if (!dry) loadLog(); }
     setBusy(null);
   };
 
   return (
     <>
-      <PageHeader title="Automatic reminders" subtitle="Every morning at 8:00 IST the app emails (and optionally WhatsApps) clients about deadlines, pending documents and overdue payments."
+      <PageHeader title="Automatic reminders" subtitle="Every morning (when the cPanel cron job runs) the app emails (and optionally WhatsApps) clients about deadlines, pending documents and overdue payments."
         actions={<>
           <Button variant="secondary" disabled={!!busy} onClick={() => run(true)}><Eye size={16} /> {busy === 'preview' ? 'Checking…' : 'Preview today'}</Button>
           <Button disabled={!!busy || !f.reminders_enabled} onClick={() => run(false)} title={f.reminders_enabled ? '' : 'Switch reminders on first'}><Send size={16} /> {busy === 'send' ? 'Sending…' : 'Send now'}</Button>

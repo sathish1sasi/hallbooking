@@ -1,7 +1,7 @@
 'use client';
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
-import { supabase } from '@/lib/supabase';
+import { api } from '@/lib/api';
 import { dueItemsForMonth, type DueItem } from '@/lib/compliance';
 import { addDays, fmtDate, todayISO } from '@/lib/format';
 import { Card, Empty } from './ui';
@@ -22,7 +22,7 @@ export function StatutoryRecurring() {
   const [gstOnly, setGstOnly] = useState(true);
 
   useEffect(() => {
-    const sb = supabase();
+    const sb = api();
     sb.from('clients').select('id, name, services').eq('status', 'active').order('name').then(({ data }: { data: C[] | null }) => setClients(data ?? []));
     sb.from('firm_settings').select('auto_compliance_days').single().then(({ data }: { data: { auto_compliance_days: number } | null }) => setLead(data?.auto_compliance_days ?? 10));
   }, []);
@@ -60,7 +60,7 @@ export function StatutoryRecurring() {
             <tbody className="divide-y divide-slate-100">
               {rows.flatMap(({ c, items }) => items.map((it, i) => (
                 <tr key={c.id + it.key}>
-                  <td className="px-3 py-2">{i === 0 && <Link href={`/clients/${c.id}`} className="font-medium hover:text-brand-600">{c.name}</Link>}</td>
+                  <td className="px-3 py-2">{i === 0 && <Link href={`/clients/view/?id=${c.id}`} className="font-medium hover:text-brand-600">{c.name}</Link>}</td>
                   <td className="px-3 py-2">{it.title}</td>
                   <td className="px-3 py-2 text-slate-600">{REPEATS[it.ruleId] ?? 'Yearly'}</td>
                   <td className="px-3 py-2 text-slate-600">{it.period}</td>

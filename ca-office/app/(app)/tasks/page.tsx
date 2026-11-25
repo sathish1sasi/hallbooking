@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Columns3, List, Plus, Search } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
+import { api } from '@/lib/api';
 import { TASK_CATEGORIES } from '@/lib/compliance';
 import { addDays, daysUntil, fmtDate, inr, todayISO } from '@/lib/format';
 import { TASK_STATUSES, type Task, type TaskStatus } from '@/lib/types';
@@ -28,7 +28,7 @@ function Tasks() {
   const [modal, setModal] = useState<null | 'new' | Task>(null);
 
   const load = useCallback(async () => {
-    let query = supabase().from('tasks').select('*, clients(name)').order('due_date', { nullsFirst: false }).limit(1000);
+    let query = api().from('tasks').select('*, clients(name)').order('due_date', { nullsFirst: false }).limit(1000);
     if (when !== 'all' && when !== 'done') query = query.neq('status', 'done');
     if (when === 'done') query = query.eq('status', 'done').order('completed_at', { ascending: false });
     const { data } = await query;
@@ -49,7 +49,7 @@ function Tasks() {
 
   const setStatus = async (t: Task, status: TaskStatus) => {
     setTasks((prev) => prev?.map((x) => (x.id === t.id ? { ...x, status } : x)) ?? null);
-    const { error } = await supabase().from('tasks').update({ status }).eq('id', t.id);
+    const { error } = await api().from('tasks').update({ status }).eq('id', t.id);
     if (error) { alert(error.message); load(); }
   };
 
@@ -92,9 +92,9 @@ function Tasks() {
             <Table head={['Client', 'Task', 'Period', 'Due', 'Assignee', 'Fee', 'Status']}>
               {filtered.map((t) => (
                 <tr key={t.id} className="hover:bg-slate-50">
-                  <Td><Link href={`/clients/${t.client_id}`} className="font-medium text-slate-900 hover:text-brand-600">{t.clients?.name}</Link></Td>
+                  <Td><Link href={`/clients/view/?id=${t.client_id}`} className="font-medium text-slate-900 hover:text-brand-600">{t.clients?.name}</Link></Td>
                   <Td>
-                    <Link className="text-left hover:text-brand-600" href={`/tasks/${t.id}`}>{t.title}</Link>
+                    <Link className="text-left hover:text-brand-600" href={`/tasks/view/?id=${t.id}`}>{t.title}</Link>
                     <div className="flex gap-1">{t.priority === 'high' && <Badge className="bg-red-50 text-red-700">high</Badge>}<span className="text-xs text-slate-500">{t.category}</span></div>
                   </Td>
                   <Td>{t.period}</Td>
@@ -128,7 +128,7 @@ function Tasks() {
                 <div className="mb-2 flex items-center justify-between px-1"><StatusBadge status={col.value} /><span className="text-xs text-slate-500">{items.length}</span></div>
                 <div className="space-y-2">
                   {items.map((t) => (
-                    <div key={t.id} draggable onDragStart={(e) => e.dataTransfer.setData('id', t.id)} onClick={() => router.push(`/tasks/${t.id}`)}
+                    <div key={t.id} draggable onDragStart={(e) => e.dataTransfer.setData('id', t.id)} onClick={() => router.push(`/tasks/view/?id=${t.id}`)}
                       className="cursor-pointer rounded-md border border-slate-200 bg-white p-2.5 text-sm shadow-sm hover:border-brand-500">
                       <div className="font-medium">{t.clients?.name}</div>
                       <div className="text-slate-600">{t.title}{t.period ? ` · ${t.period}` : ''}</div>

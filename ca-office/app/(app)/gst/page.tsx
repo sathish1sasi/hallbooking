@@ -2,7 +2,7 @@
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { ChevronLeft, ChevronRight, Search } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
+import { api } from '@/lib/api';
 import { fyMonths, gstReturnsForPeriod, type GstCell } from '@/lib/compliance';
 import { addDays, fmtDate, todayISO } from '@/lib/format';
 import { useApp } from '@/components/AppContext';
@@ -36,7 +36,7 @@ export default function GstTracker() {
   const [show, setShow] = useState<'all' | 'pending' | 'monthly' | 'quarterly'>('all');
 
   useEffect(() => {
-    const sb = supabase();
+    const sb = api();
     sb.from('firm_settings').select('auto_compliance_days').single().then(({ data }: { data: { auto_compliance_days: number } | null }) => setLead(data?.auto_compliance_days ?? 10));
     sb.from('clients').select('id, name, gstin, services, assigned_to').eq('status', 'active').order('name')
       .then(({ data }: { data: C[] | null }) => setClients((data ?? []).filter((c) => c.services.includes('GST_MONTHLY') || c.services.includes('GST_QUARTERLY'))));
@@ -44,7 +44,7 @@ export default function GstTracker() {
 
   useEffect(() => {
     if (!clients?.length) { setTasks([]); return; }
-    supabase().from('tasks').select('id, client_id, compliance_key, status, due_date, completed_at, acknowledgement_no')
+    api().from('tasks').select('id, client_id, compliance_key, status, due_date, completed_at, acknowledgement_no')
       .in('client_id', clients.map((c) => c.id)).not('compliance_key', 'is', null)
       .gte('due_date', `${fy}-05-01`).lte('due_date', `${fy + 1}-04-30`).limit(20000)
       .then(({ data }: { data: T[] | null }) => setTasks(data ?? []));
@@ -141,7 +141,7 @@ export default function GstTracker() {
                 {visible.map(({ c, quarterly, cols }) => (
                   <tr key={c.id}>
                     <td className="sticky left-0 z-10 min-w-[12rem] border-b border-slate-100 bg-white px-3 py-2">
-                      <Link href={`/clients/${c.id}`} className="font-medium text-slate-800 hover:text-brand-600">{c.name}</Link>
+                      <Link href={`/clients/view/?id=${c.id}`} className="font-medium text-slate-800 hover:text-brand-600">{c.name}</Link>
                       <div className="font-mono text-[11px] text-slate-400">{c.gstin ?? 'no GSTIN'} · {quarterly ? 'QRMP' : 'Monthly'}</div>
                       <div className="text-[11px] text-slate-400">{staffName(c.assigned_to)}</div>
                     </td>
@@ -152,7 +152,7 @@ export default function GstTracker() {
                             const tip = `${cell.title}\nDue ${fmtDate(cell.dueDate)}${task?.completed_at ? `\nFiled ${fmtDate(task.completed_at)}` : ''}${task?.acknowledgement_no ? `\nARN ${task.acknowledgement_no}` : ''}${state === 'soon' ? '\nTask will be created automatically' : ''}`;
                             const cls = `inline-grid h-6 min-w-[2rem] place-items-center rounded px-1 text-[10px] font-bold ${STYLE[state]}`;
                             return task
-                              ? <Link key={cell.key} href={`/tasks/${task.id}`} title={tip} className={`${cls} hover:opacity-80`}>{cell.label}</Link>
+                              ? <Link key={cell.key} href={`/tasks/view/?id=${task.id}`} title={tip} className={`${cls} hover:opacity-80`}>{cell.label}</Link>
                               : <span key={cell.key} title={tip} className={cls}>{cell.label}</span>;
                           })}
                         </div>
