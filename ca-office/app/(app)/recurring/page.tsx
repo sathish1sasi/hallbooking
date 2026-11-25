@@ -8,6 +8,7 @@ import { stepsFor } from '@/lib/checklists';
 import { addDays, fmtDate, inr, todayISO } from '@/lib/format';
 import type { RecurringTask } from '@/lib/types';
 import { useApp } from '@/components/AppContext';
+import { StatutoryRecurring } from '@/components/StatutoryRecurring';
 import { Badge, Button, Card, Empty, ErrorNote, Field, Input, Modal, PageHeader, Select, Table, Td, Textarea } from '@/components/ui';
 
 const FREQ: Record<RecurringTask['frequency'], string> = { weekly: 'Weekly', monthly: 'Monthly', quarterly: 'Quarterly', half_yearly: 'Half-yearly', yearly: 'Yearly' };
@@ -39,7 +40,7 @@ export default function RecurringPage() {
     <>
       <Link href="/tasks" className="mb-3 inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-800"><ArrowLeft size={14} /> Tasks</Link>
       <PageHeader title="Recurring tasks"
-        subtitle="Work that repeats for a client, like monthly bookkeeping or a weekly MIS. Each task appears 7 days before it is due, with its checklist. This runs automatically every morning."
+        subtitle="Your own repeating work (bookkeeping, MIS) is set up here. GST, TDS and other statutory returns repeat automatically from each client's services and are listed below. Each task appears 7 days before it is due, with its checklist. This runs automatically every morning."
         actions={<>
           <Button variant="secondary" disabled={busy} onClick={generate}><RefreshCw size={15} /> {busy ? 'Creating…' : 'Create due tasks now'}</Button>
           <Button onClick={() => setModal('new')}><Plus size={16} /> New recurring task</Button>
@@ -63,6 +64,7 @@ export default function RecurringPage() {
           </Table>
         )}
       </Card>
+      <StatutoryRecurring />
       {modal && (
         <Modal title={modal === 'new' ? 'New recurring task' : 'Edit recurring task'} wide onClose={() => setModal(null)}>
           <RecurringForm rec={modal === 'new' ? undefined : modal} canDelete={me?.role === 'admin'} onSaved={() => { setModal(null); load(); }} />
