@@ -198,3 +198,62 @@ export function dueItemsForMonth(year: number, month: number): DueItem[] {
 }
 
 export const TASK_CATEGORIES = ['GST', 'TDS', 'Income Tax', 'Audit', 'ROC', 'Accounting', 'Advisory', 'other'];
+
+const pad2 = (n: number) => String(n).padStart(2, '0');
+const isoAdd = (iso: string, days: number) => {
+  const d = new Date(iso + 'T00:00:00Z');
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+};
+
+export interface ComplianceClient { id: string; services: string[]; assigned_to: string | null }
+export interface ComplianceTaskRow {
+  client_id: string; title: string; category: string; period: string; due_date: string;
+  assigned_to: string | null; compliance_key: string;
+}
+
+/**
+ * Statutory tasks that should exist now: every item due from today up to
+ * `leadDays` ahead, for every client whose services include it. Used by the
+ * daily job so GST/TDS/ROC tasks appear automatically each month.
+ * Duplicates are prevented by the (client_id, compliance_key) unique key.
+ */
+export function complianceTasksDue(clients: ComplianceClient[], today: string, leadDays: number): ComplianceTaskRow[] {
+  if (leadDays <= 0) return [];
+  const until = isoAdd(today, leadDays);
+  const months = new Set<string>();
+  for (let d = today; d <= until; d = isoAdd(d, 1)) months.add(d.slice(0, 7));
+  const rows: ComplianceTaskRow[] = [];
+  for (const ym of months) {
+    const [y, m] = ym.split('-').map(Number);
+    for (const it of dueItemsForMonth(y, m)) {
+      if (it.dueDate < today || it.dueDate > until) continue;
+      for (const c of clients) {
+        if (!c.services.includes(it.service)) continue;
+        rows.push({ client_id: c.id, title: it.title, category: it.category, period: it.period, due_date: it.dueDate, assigned_to: c.assigned_to, compliance_key: it.key });
+      }
+    }
+  }
+  return rows;
+}
+
+export interface GstCell { label: string; title: string; key: string; dueDate: string }
+
+/**
+ * The GST returns for one tax period (the month the sales/purchases belong to),
+ * for a monthly or QRMP client. Keys match the tasks the calendar creates.
+ */
+export function gstReturnsForPeriod(periodYear: number, periodMonth: number, quarterly: boolean): GstCell[] {
+  const ny = periodMonth === 12 ? periodYear + 1 : periodYear;
+  const nm = periodMonth === 12 ? 1 : periodMonth + 1;
+  const want = quarterly ? ['GSTR1Q', 'GSTR3BQ', 'PMT06'] : ['GSTR1', 'GSTR3B'];
+  const short: Record<string, string> = { GSTR1: 'R1', GSTR3B: '3B', GSTR1Q: 'R1', GSTR3BQ: '3B', PMT06: 'PMT' };
+  return dueItemsForMonth(ny, nm)
+    .filter((i) => want.includes(i.ruleId))
+    .sort((a, b) => want.indexOf(a.ruleId) - want.indexOf(b.ruleId))
+    .map((i) => ({ label: short[i.ruleId], title: `${i.title} · ${i.period}`, key: i.key, dueDate: i.dueDate }));
+}
+
+export const fyMonths = (fyStart: number) =>
+  Array.from({ length: 12 }, (_, i) => ({ y: i < 9 ? fyStart : fyStart + 1, m: ((i + 3) % 12) + 1 }));
+export const ymISO = (y: number, m: number) => `${y}-${pad2(m)}`;

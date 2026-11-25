@@ -129,6 +129,7 @@ export interface FirmSettings {
   invoice_prefix: string;
   next_invoice_no: number;
   reminders_enabled: boolean;
+  auto_compliance_days: number;
   reminder_deadline_days: number;
   reminder_doc_after_days: number;
   reminder_repeat_days: number;

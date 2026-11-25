@@ -2,6 +2,8 @@ import 'server-only';
 import { adminClient } from './supabase-admin';
 import { emailConfigured, normalisePhone, sendEmail, sendWhatsApp, whatsappConfigured } from './send';
 import { addDaysISO, planReminders, type ReminderKind } from '../reminders';
+import { complianceTasksDue } from '../compliance';
+import { stepsFor } from '../checklists';
 
 /** Today's date in India, whatever timezone the server runs in. */
 export const todayIST = () => new Date(Date.now() + 5.5 * 3600 * 1000).toISOString().slice(0, 10);
@@ -9,6 +11,7 @@ export const todayIST = () => new Date(Date.now() + 5.5 * 3600 * 1000).toISOStri
 export interface JobSummary {
   date: string;
   recurringCreated: number;
+  complianceCreated: number;
   remindersEnabled: boolean;
   emailReady: boolean;
   whatsappReady: boolean;
@@ -31,9 +34,27 @@ export async function runDailyJob({ dryRun = false } = {}): Promise<JobSummary> 
     recurringCreated = data ?? 0;
   }
 
-  // 2. Reminders.
   const { data: firm } = await sb.from('firm_settings').select('*').single();
-  const summary: JobSummary = { date: today, recurringCreated, remindersEnabled: !!firm?.reminders_enabled, emailReady: emailConfigured(), whatsappReady: whatsappConfigured(), planned: 0, sent: 0, failed: 0, skipped: 0, details: [] };
+
+  // 2. Statutory tasks (GST, TDS, ROC…) for every client, N days before due.
+  let complianceCreated = 0;
+  const lead = firm?.auto_compliance_days ?? 10;
+  if (!dryRun && lead > 0) {
+    const { data: cl } = await sb.from('clients').select('id, services, assigned_to').eq('status', 'active');
+    const rows = complianceTasksDue(cl ?? [], today, lead);
+    for (let i = 0; i < rows.length; i += 500) {
+      const { data: created, error } = await sb.from('tasks')
+        .upsert(rows.slice(i, i + 500), { onConflict: 'client_id,compliance_key', ignoreDuplicates: true })
+        .select('id, category');
+      if (error) throw new Error(`Compliance tasks failed: ${error.message}`);
+      complianceCreated += created?.length ?? 0;
+      const steps = (created ?? []).flatMap((t) => stepsFor(t.category).map((label, n) => ({ task_id: t.id, label, position: n + 1 })));
+      if (steps.length) await sb.from('task_checklist').insert(steps);
+    }
+  }
+
+  // 3. Reminders.
+  const summary: JobSummary = { date: today, recurringCreated, complianceCreated, remindersEnabled: !!firm?.reminders_enabled, emailReady: emailConfigured(), whatsappReady: whatsappConfigured(), planned: 0, sent: 0, failed: 0, skipped: 0, details: [] };
   if (!firm?.reminders_enabled && !dryRun) return summary;
 
   const settings = {

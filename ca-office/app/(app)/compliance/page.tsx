@@ -5,6 +5,8 @@ import { supabase } from '@/lib/supabase';
 import { dueItemsForMonth, SERVICES, type DueItem } from '@/lib/compliance';
 import { daysUntil, fmtDate } from '@/lib/format';
 import { Badge, Button, Card, DueBadge, Empty, ErrorNote, PageHeader } from '@/components/ui';
+import { stepsFor } from '@/lib/checklists';
+import { AutoCreateSetting } from '@/components/AutoCreateSetting';
 
 type C = { id: string; name: string; services: string[]; assigned_to: string | null };
 type T = { client_id: string; compliance_key: string; status: string };
@@ -54,7 +56,12 @@ export default function CompliancePage() {
         })),
     );
     if (!rows.length) { setBusy(null); setMsg('All tasks for this selection already exist.'); return; }
-    const { error } = await supabase().from('tasks').upsert(rows, { onConflict: 'client_id,compliance_key', ignoreDuplicates: true });
+    const { data: created, error } = await supabase().from('tasks')
+      .upsert(rows, { onConflict: 'client_id,compliance_key', ignoreDuplicates: true }).select('id, category');
+    if (!error && created?.length) {
+      await supabase().from('task_checklist').insert(
+        created.flatMap((t: { id: string; category: string }) => stepsFor(t.category).map((label, n) => ({ task_id: t.id, label, position: n + 1 }))));
+    }
     setBusy(null);
     if (error) return setError(error.message);
     setMsg(`Created ${rows.length} task${rows.length === 1 ? '' : 's'}, assigned to each client's manager.`);
@@ -84,6 +91,7 @@ export default function CompliancePage() {
       <div className="mb-4 space-y-2">
         <ErrorNote error={error} />
         {msg && <p className="rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{msg}</p>}
+        <AutoCreateSetting />
       </div>
 
       {!items.length ? <Empty>No statutory deadlines this month.</Empty> : (

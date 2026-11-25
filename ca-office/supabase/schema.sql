@@ -652,3 +652,9 @@ create policy "recurring delete" on public.recurring_tasks for delete to authent
 -- Reminder log: readable by staff; written only by the server job (service role bypasses RLS).
 drop policy if exists "reminder log read" on public.reminder_log;
 create policy "reminder log read" on public.reminder_log for select to authenticated using (true);
+
+-- ===========================================================================
+-- v4: statutory tasks (GST, TDS, ROC…) are created automatically by the daily
+-- job this many days before they fall due. 0 switches it off.
+-- ===========================================================================
+alter table public.firm_settings add column if not exists auto_compliance_days int not null default 10;

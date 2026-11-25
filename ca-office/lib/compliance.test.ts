@@ -68,3 +68,34 @@ test('PAN / GSTIN validation', () => {
   assert.ok(validGSTIN('27ABCDE1234F1Z5'));
   assert.ok(!validGSTIN('27ABCDE1234F1X5'));
 });
+
+import { complianceTasksDue, gstReturnsForPeriod, fyMonths } from './compliance.ts';
+
+test('auto-creation picks items due within the lead window only', () => {
+  const clients = [
+    { id: 'm', services: ['GST_MONTHLY', 'TDS'], assigned_to: 'u1' },
+    { id: 'q', services: ['GST_QUARTERLY'], assigned_to: null },
+  ];
+  const rows = complianceTasksDue(clients, '2026-12-01', 10);
+  const keys = rows.map((r) => `${r.client_id}|${r.compliance_key}|${r.due_date}`).sort();
+  assert.deepEqual(keys, ['m|TDSPAY:Nov-2026|2026-12-07', 'm|GSTR1:Nov-2026|2026-12-11'].sort());
+  assert.equal(rows.find((r) => r.compliance_key.startsWith('GSTR1'))!.assigned_to, 'u1');
+  // spans into next month
+  const jan = complianceTasksDue(clients, '2026-12-28', 10).map((r) => r.compliance_key);
+  assert.ok(jan.includes('GSTR9:FY 2025-26'));
+  assert.ok(jan.includes('TDSPAY:Dec-2026'));
+  assert.deepEqual(complianceTasksDue(clients, '2026-12-01', 0), []);
+});
+
+test('GST returns per period: monthly vs QRMP', () => {
+  assert.deepEqual(gstReturnsForPeriod(2026, 10, false).map((c) => [c.key, c.dueDate]), [['GSTR1:Oct-2026', '2026-11-11'], ['GSTR3B:Oct-2026', '2026-11-20']]);
+  assert.deepEqual(gstReturnsForPeriod(2026, 12, false).map((c) => c.key), ['GSTR1:Dec-2026', 'GSTR3B:Dec-2026']);
+  assert.deepEqual(gstReturnsForPeriod(2026, 9, true).map((c) => c.key), ['GSTR1Q:Jul–Sep 2026', 'GSTR3BQ:Jul–Sep 2026']);
+  assert.deepEqual(gstReturnsForPeriod(2026, 10, true).map((c) => [c.key, c.label]), [['PMT06:Oct-2026', 'PMT']]);
+  assert.deepEqual(gstReturnsForPeriod(2027, 3, true).map((c) => c.dueDate), ['2027-04-13', '2027-04-22']);
+});
+
+test('financial year months run Apr to Mar', () => {
+  const m = fyMonths(2026);
+  assert.deepEqual([m[0], m[8], m[9], m[11]], [{ y: 2026, m: 4 }, { y: 2026, m: 12 }, { y: 2027, m: 1 }, { y: 2027, m: 3 }]);
+});

@@ -4,7 +4,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   LayoutDashboard, ListChecks, CheckSquare, Users, Package, CalendarClock, IndianRupee, Clock, CalendarCheck,
-  FileKey2, BarChart3, BellRing, UserCog, Settings, LogOut, Menu, Bell, Search, Calculator, MailCheck,
+  FileKey2, BarChart3, BellRing, UserCog, Settings, LogOut, Menu, Bell, Search, Calculator, MailCheck, Grid3x3,
 } from 'lucide-react';
 import { QuickAdd } from './QuickAdd';
 import { supabase } from '@/lib/supabase';
@@ -18,6 +18,7 @@ const NAV = [
   { href: '/clients', label: 'Clients', icon: Users },
   { href: '/packages', label: 'Packages', icon: Package },
   { href: '/compliance', label: 'Compliance', icon: CalendarClock },
+  { href: '/gst', label: 'GST tracker', icon: Grid3x3 },
   { href: '/invoices', label: 'Finance', icon: IndianRupee },
   { href: '/timesheets', label: 'Timesheets', icon: Clock },
   { href: '/attendance', label: 'Attendance', icon: CalendarCheck },
